@@ -1,0 +1,146 @@
+---
+alwaysApply: true
+---
+
+# Design Canvas Project Structure
+
+## File Structure
+
+```
+design-canvas/
+├── components.json              # UI components configuration
+├── cursor/
+│   └── rules/
+│       └── project-structure.mdc
+├── env.example                  # Environment variables template
+├── eslint.config.mjs           # ESLint configuration
+├── next-env.d.ts               # Next.js TypeScript declarations
+├── next.config.ts              # Next.js configuration
+├── node_modules/               # Dependencies
+├── package.json                # Project dependencies and scripts
+├── pnpm-lock.yaml             # Package lock file
+├── postcss.config.mjs         # PostCSS configuration
+├── public/                     # Static assets
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md                   # Project documentation
+├── src/
+│   ├── app/                    # Next.js app directory
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   └── ui/                 # Reusable UI components
+│   │       ├── accordion.tsx
+│   │       ├── alert-dialog.tsx
+│   │       ├── alert.tsx
+│   │       ├── aspect-ratio.tsx
+│   │       ├── avatar.tsx
+│   │       ├── badge.tsx
+│   │       ├── breadcrumb.tsx
+│   │       ├── button-group.tsx
+│   │       ├── button.tsx
+│   │       ├── calendar.tsx
+│   │       ├── card.tsx
+│   │       ├── carousel.tsx
+│   │       ├── chart.tsx
+│   │       ├── checkbox.tsx
+│   │       ├── collapsible.tsx
+│   │       ├── command.tsx
+│   │       ├── context-menu.tsx
+│   │       ├── dialog.tsx
+│   │       ├── drawer.tsx
+│   │       ├── dropdown-menu.tsx
+│   │       ├── empty.tsx
+│   │       ├── field.tsx
+│   │       ├── form.tsx
+│   │       ├── hover-card.tsx
+│   │       ├── input-group.tsx
+│   │       ├── input-otp.tsx
+│   │       ├── input.tsx
+│   │       ├── item.tsx
+│   │       ├── kbd.tsx
+│   │       ├── label.tsx
+│   │       ├── menubar.tsx
+│   │       ├── navigation-menu.tsx
+│   │       ├── pagination.tsx
+│   │       ├── popover.tsx
+│   │       ├── progress.tsx
+│   │       ├── radio-group.tsx
+│   │       ├── resizable.tsx
+│   │       ├── scroll-area.tsx
+│   │       ├── select.tsx
+│   │       ├── separator.tsx
+│   │       ├── sheet.tsx
+│   │       ├── sidebar.tsx
+│   │       ├── skeleton.tsx
+│   │       ├── slider.tsx
+│   │       ├── sonner.tsx
+│   │       ├── spinner.tsx
+│   │       ├── switch.tsx
+│   │       ├── table.tsx
+│   │       ├── tabs.tsx
+│   │       ├── textarea.tsx
+│   │       ├── toggle-group.tsx
+│   │       ├── toggle.tsx
+│   │       └── tooltip.tsx
+│   ├── hooks/
+│   │   └── use-mobile.ts       # Custom React hooks
+│   └── lib/
+│       └── utils.ts            # Utility functions
+└── tsconfig.json               # TypeScript configuration
+```
+
+## Installed Packages
+
+### Dependencies
+
+- **@hookform/resolvers**: Form validation resolvers
+- **@radix-ui/react-\***: Comprehensive UI primitives library
+  - accordion, alert-dialog, aspect-ratio, avatar, checkbox, collapsible
+  - context-menu, dialog, dropdown-menu, hover-card, label, menubar
+  - navigation-menu, popover, progress, radio-group, scroll-area
+  - select, separator, slider, slot, switch, tabs, toggle, toggle-group, tooltip
+- **class-variance-authority**: CSS class variant management
+- **clsx**: Conditional className utility
+- **cmdk**: Command palette component
+- **date-fns**: Date utility library
+- **embla-carousel-react**: Carousel component
+- **firebase**: Firebase SDK
+- **input-otp**: OTP input component
+- **lucide-react**: Icon library
+- **next**: Next.js React framework (v15.5.5)
+- **next-firebase-auth-edge**: Firebase auth for Next.js Edge Runtime
+- **next-themes**: Theme management
+- **react**: React library (v19.1.0)
+- **react-day-picker**: Date picker component
+- **react-dom**: React DOM (v19.1.0)
+- **react-hook-form**: Form handling library
+- **react-resizable-panels**: Resizable panel components
+- **recharts**: Chart library
+- **sonner**: Toast notification library
+- **tailwind-merge**: Tailwind CSS class merging utility
+- **vaul**: Drawer component
+- **zod**: Schema validation
+- **zustand**: State management
+
+### Dev Dependencies
+
+- **@eslint/eslintrc**: ESLint configuration
+- **@tailwindcss/postcss**: Tailwind CSS PostCSS plugin
+- **@types/node**: Node.js TypeScript types
+- **@types/react**: React TypeScript types
+- **@types/react-dom**: React DOM TypeScript types
+- **eslint**: JavaScript linter
+- **eslint-config-next**: Next.js ESLint configuration
+- **tailwindcss**: CSS framework (v4)
+- **tw-animate-css**: Tailwind CSS animations
+- **typescript**: TypeScript compiler
+
+## Project Type
+
+Next.js 15 application with TypeScript, Tailwind CSS, and comprehensive UI component library based on Radix UI primitives.
