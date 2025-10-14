@@ -291,6 +291,7 @@ export default function CanvasPage() {
             onShapeCreate={handleShapeCreate}
             onShapeUpdate={handleShapeUpdate}
             onShapeDelete={handleShapeDelete}
+            onToolChange={setCurrentTool}
             onMouseMove={handleMouseMove}
             cursors={cursors}
             currentUserId={user?.uid}
@@ -312,7 +313,7 @@ export default function CanvasPage() {
               <MousePointer className="w-4 h-4" />
               Select
             </Button>
-            <Button
+            {/* <Button
               variant={currentTool === "pan" ? "default" : "outline"}
               size="sm"
               onClick={() => handleToolChange("pan")}
@@ -320,7 +321,7 @@ export default function CanvasPage() {
             >
               <Hand className="w-4 h-4" />
               Pan
-            </Button>
+            </Button> */}
             <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1" />
             <Button
               variant={currentTool === "rectangle" ? "default" : "outline"}

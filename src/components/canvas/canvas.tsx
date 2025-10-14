@@ -45,6 +45,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     onShapeCreate,
     onShapeUpdate,
     onShapeDelete,
+    onToolChange,
     cursors = {},
     onMouseMove,
     currentUserId,
@@ -164,6 +165,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       setIsCreatingShape(false);
       setCurrentTool("select");
+
+      // Notify parent component of tool change
+      onToolChange?.("select");
 
       // Notify parent component (it will handle saving to database)
       onShapeCreate?.(newShape);
