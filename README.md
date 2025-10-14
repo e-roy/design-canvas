@@ -10,7 +10,7 @@ This is a hard gate. To pass the MVP checkpoint, you must have:
 - [x] At least one shape type (rectangle, circle, or text)
 - [x] Ability to create and move objects
 - [x] Real-time sync between 2+ users
-- [ ] Multiplayer cursors with name labels
+- [x] Multiplayer cursors with name labels
 - [x] Presence awareness (who's online)
 - [x] User authentication (users have accounts/names)
 - [x] Deployed and publicly accessible

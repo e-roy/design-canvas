@@ -15,6 +15,8 @@ import { CanvasProps, CanvasViewport, Point, Shape } from "./types";
 import { Viewport } from "./viewport";
 import { CanvasGrid } from "./grid";
 import { RectangleShape, CircleShape, TextShape } from "./shapes";
+import { CursorsOverlay } from "./cursor";
+import { CursorPosition } from "@/types";
 
 // Canvas constants
 const VIRTUAL_WIDTH = 5000;
@@ -43,6 +45,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     onShapeCreate,
     onShapeUpdate,
     onShapeDelete,
+    cursors = {},
+    onMouseMove,
+    currentUserId,
   },
   ref
 ) {
@@ -218,9 +223,28 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     setPreviewShape(preview);
   }, [isCreatingShape, currentTool, viewport, virtualWidth, virtualHeight]);
 
-  // Handle stage mouse move for updating preview shape
+  // Handle stage mouse move for updating preview shape and cursor tracking
   const handleStageMouseMove = useCallback(() => {
-    if (!isCreatingShape || !creationStartPoint || !previewShape) return;
+    if (!isCreatingShape || !creationStartPoint || !previewShape) {
+      // Track cursor position for real-time collaboration even when not creating shapes
+      if (onMouseMove) {
+        const stage = stageRef.current;
+        if (!stage) return;
+
+        const pointer = stage.getPointerPosition();
+        if (!pointer) return;
+
+        // Convert screen coordinates to virtual canvas coordinates
+        const virtualPosition: CursorPosition = {
+          x: pointer.x / viewport.scale + viewport.x,
+          y: pointer.y / viewport.scale + viewport.y,
+          timestamp: Date.now(),
+        };
+
+        onMouseMove(virtualPosition);
+      }
+      return;
+    }
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -264,12 +288,24 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           : null
       );
     }
+
+    // Also track cursor position when creating shapes
+    if (onMouseMove) {
+      const virtualPosition: CursorPosition = {
+        x: virtualPoint.x,
+        y: virtualPoint.y,
+        timestamp: Date.now(),
+      };
+
+      onMouseMove(virtualPosition);
+    }
   }, [
     isCreatingShape,
     creationStartPoint,
     previewShape,
     currentTool,
     viewport,
+    onMouseMove,
   ]);
 
   // Handle stage mouse up for finalizing shape creation
@@ -647,6 +683,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           </Viewport>
         </Layer>
       </Stage>
+
+      {/* Cursors overlay */}
+      <CursorsOverlay
+        cursors={cursors}
+        currentUserId={currentUserId}
+        viewport={viewport}
+      />
 
       {/* Canvas boundary indicators */}
       <div className="absolute inset-0 pointer-events-none">

@@ -4,7 +4,7 @@ import { canvasService } from "@/lib/canvas-service";
 import {
   CanvasDocument,
   StoredShape,
-  UserCursor,
+  CanvasUserCursor,
   UseCanvasReturn,
 } from "@/types";
 
@@ -14,7 +14,7 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
     null
   );
   const [shapes, setShapes] = useState<StoredShape[]>([]);
-  const [userCursors, setUserCursors] = useState<UserCursor[]>([]);
+  const [userCursors, setUserCursors] = useState<CanvasUserCursor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subscriptionRef = useRef<{ unsubscribe?: () => void }>({});

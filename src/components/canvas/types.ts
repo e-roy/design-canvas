@@ -64,6 +64,9 @@ export interface CanvasProps {
   onShapeCreate?: (shape: Shape) => void;
   onShapeUpdate?: (shapeId: string, updates: Partial<Shape>) => void;
   onShapeDelete?: (shapeId: string) => void;
+  cursors?: Record<string, import("@/types").UserCursor>;
+  onMouseMove?: (position: import("@/types").CursorPosition) => void;
+  currentUserId?: string;
 }
 
 export interface ViewportProps {

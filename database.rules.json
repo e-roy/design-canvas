@@ -1,0 +1,14 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "canvas_cursors": {
+      "$canvasId": {
+        ".read": "auth !== null",
+        "$userId": {
+          ".write": "auth !== null && auth.uid === $userId"
+        }
+      }
+    }
+  }
+}

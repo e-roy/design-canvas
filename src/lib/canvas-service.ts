@@ -13,7 +13,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
-import { CanvasDocument, StoredShape, UserCursor } from "@/types";
+import { CanvasDocument, StoredShape, CanvasUserCursor } from "@/types";
 
 const CANVAS_DOCUMENTS_COLLECTION = "canvas_documents";
 const CANVAS_SHAPES_COLLECTION = "canvas_shapes";
@@ -407,7 +407,7 @@ export class CanvasService {
 
   subscribeToUserCursors(
     documentId: string,
-    onUpdate: (cursors: UserCursor[]) => void
+    onUpdate: (cursors: CanvasUserCursor[]) => void
   ): () => void {
     // Check if user is authenticated before proceeding
     if (!auth.currentUser) {
@@ -426,7 +426,7 @@ export class CanvasService {
         const cursors = snapshot.docs.map((doc) => ({
           userId: doc.id,
           ...doc.data(),
-        })) as UserCursor[];
+        })) as CanvasUserCursor[];
 
         onUpdate(cursors);
       },

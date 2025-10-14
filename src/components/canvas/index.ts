@@ -4,3 +4,4 @@ export { Viewport } from "./viewport";
 export { CanvasGrid } from "./grid";
 export type * from "./types";
 export * from "./shapes";
+export { Cursor, CursorsOverlay } from "./cursor";

@@ -44,7 +44,7 @@ export interface CanvasSnapshot {
   };
 }
 
-export interface UserCursor {
+export interface CanvasUserCursor {
   userId: string;
   userName: string;
   x: number;
@@ -56,7 +56,7 @@ export interface UserCursor {
 export interface UseCanvasReturn {
   canvasDocument: CanvasDocument | null;
   shapes: StoredShape[];
-  userCursors: UserCursor[];
+  userCursors: CanvasUserCursor[];
   isLoading: boolean;
   error: string | null;
   saveShape: (

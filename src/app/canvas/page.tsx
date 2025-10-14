@@ -11,7 +11,8 @@ import { useUserStore } from "@/store/user-store";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Canvas, CanvasRef, Shape } from "@/components/canvas";
-import { StoredShape } from "@/types";
+import { StoredShape, CanvasCursorState, CursorPosition } from "@/types";
+import { cursorManager } from "@/lib/cursor-manager";
 import { Square, Circle, MousePointer, Hand } from "lucide-react";
 
 // Use a fixed document ID for the main collaborative canvas
@@ -23,6 +24,7 @@ export default function CanvasPage() {
   const [currentTool, setCurrentTool] = useState<
     "select" | "pan" | "rectangle" | "circle" | "text"
   >("select");
+  const [cursors, setCursors] = useState<CanvasCursorState>({});
   const router = useRouter();
   const canvasRef = useRef<CanvasRef>(null);
   const { user } = useUserStore();
@@ -50,6 +52,38 @@ export default function CanvasPage() {
 
     return () => unsubscribe();
   }, [router]);
+
+  // Set up cursor tracking
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      // Set the user for cursor tracking
+      cursorManager.setUser({
+        uid: user.uid,
+        displayName: user.displayName,
+        email: user.email,
+        photoURL: user.photoURL,
+      });
+
+      // Subscribe to cursor updates
+      const unsubscribeCursors = cursorManager.subscribeToCanvasCursors(
+        (newCursors) => {
+          setCursors(newCursors);
+        }
+      );
+
+      return () => {
+        unsubscribeCursors();
+        cursorManager.clearUserCursor();
+      };
+    }
+  }, [user, isAuthenticated]);
+
+  // Handle mouse movement for cursor tracking
+  const handleMouseMove = (position: CursorPosition) => {
+    if (user && isAuthenticated) {
+      cursorManager.updateCursorPosition(position);
+    }
+  };
 
   // Show error if canvas doesn't exist (user needs to create it manually)
   if (
@@ -257,6 +291,9 @@ export default function CanvasPage() {
             onShapeCreate={handleShapeCreate}
             onShapeUpdate={handleShapeUpdate}
             onShapeDelete={handleShapeDelete}
+            onMouseMove={handleMouseMove}
+            cursors={cursors}
+            currentUserId={user?.uid}
             className="w-full h-full"
           />
         </div>
