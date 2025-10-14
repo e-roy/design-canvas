@@ -29,71 +29,104 @@ design-canvas/
 ├── README.md                   # Project documentation
 ├── src/
 │   ├── app/                    # Next.js app directory
+│   │   ├── api/                # API routes
+│   │   ├── canvas/             # Canvas page
+│   │   │   └── page.tsx        # Main canvas interface
+│   │   ├── login/              # Authentication page
+│   │   │   └── page.tsx        # Login/signup form
 │   │   ├── favicon.ico
 │   │   ├── globals.css
 │   │   ├── layout.tsx
-│   │   └── page.tsx
+│   │   └── page.tsx            # Home page
 │   ├── components/
-│   │   └── ui/                 # Reusable UI components
-│   │       ├── accordion.tsx
-│   │       ├── alert-dialog.tsx
-│   │       ├── alert.tsx
-│   │       ├── aspect-ratio.tsx
-│   │       ├── avatar.tsx
-│   │       ├── badge.tsx
-│   │       ├── breadcrumb.tsx
-│   │       ├── button-group.tsx
-│   │       ├── button.tsx
-│   │       ├── calendar.tsx
-│   │       ├── card.tsx
-│   │       ├── carousel.tsx
-│   │       ├── chart.tsx
-│   │       ├── checkbox.tsx
-│   │       ├── collapsible.tsx
-│   │       ├── command.tsx
-│   │       ├── context-menu.tsx
-│   │       ├── dialog.tsx
-│   │       ├── drawer.tsx
-│   │       ├── dropdown-menu.tsx
-│   │       ├── empty.tsx
-│   │       ├── field.tsx
-│   │       ├── form.tsx
-│   │       ├── hover-card.tsx
-│   │       ├── input-group.tsx
-│   │       ├── input-otp.tsx
-│   │       ├── input.tsx
-│   │       ├── item.tsx
-│   │       ├── kbd.tsx
-│   │       ├── label.tsx
-│   │       ├── menubar.tsx
-│   │       ├── navigation-menu.tsx
-│   │       ├── pagination.tsx
-│   │       ├── popover.tsx
-│   │       ├── progress.tsx
-│   │       ├── radio-group.tsx
-│   │       ├── resizable.tsx
-│   │       ├── scroll-area.tsx
-│   │       ├── select.tsx
-│   │       ├── separator.tsx
-│   │       ├── sheet.tsx
-│   │       ├── sidebar.tsx
-│   │       ├── skeleton.tsx
-│   │       ├── slider.tsx
-│   │       ├── sonner.tsx
-│   │       ├── spinner.tsx
-│   │       ├── switch.tsx
-│   │       ├── table.tsx
-│   │       ├── tabs.tsx
-│   │       ├── textarea.tsx
-│   │       ├── toggle-group.tsx
-│   │       ├── toggle.tsx
-│   │       └── tooltip.tsx
+│   │   ├── ui/                 # Reusable UI components
+│   │   │   ├── accordion.tsx
+│   │   │   ├── alert-dialog.tsx
+│   │   │   ├── alert.tsx
+│   │   │   ├── aspect-ratio.tsx
+│   │   │   ├── avatar.tsx
+│   │   │   ├── badge.tsx
+│   │   │   ├── breadcrumb.tsx
+│   │   │   ├── button-group.tsx
+│   │   │   ├── button.tsx
+│   │   │   ├── calendar.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── carousel.tsx
+│   │   │   ├── chart.tsx
+│   │   │   ├── checkbox.tsx
+│   │   │   ├── collapsible.tsx
+│   │   │   ├── command.tsx
+│   │   │   ├── context-menu.tsx
+│   │   │   ├── dialog.tsx
+│   │   │   ├── drawer.tsx
+│   │   │   ├── dropdown-menu.tsx
+│   │   │   ├── empty.tsx
+│   │   │   ├── field.tsx
+│   │   │   ├── form.tsx
+│   │   │   ├── hover-card.tsx
+│   │   │   ├── input-group.tsx
+│   │   │   ├── input-otp.tsx
+│   │   │   ├── input.tsx
+│   │   │   ├── item.tsx
+│   │   │   ├── kbd.tsx
+│   │   │   ├── label.tsx
+│   │   │   ├── menubar.tsx
+│   │   │   ├── navigation-menu.tsx
+│   │   │   ├── pagination.tsx
+│   │   │   ├── popover.tsx
+│   │   │   ├── progress.tsx
+│   │   │   ├── radio-group.tsx
+│   │   │   ├── resizable.tsx
+│   │   │   ├── scroll-area.tsx
+│   │   │   ├── select.tsx
+│   │   │   ├── separator.tsx
+│   │   │   ├── sheet.tsx
+│   │   │   ├── sidebar.tsx
+│   │   │   ├── skeleton.tsx
+│   │   │   ├── slider.tsx
+│   │   │   ├── sonner.tsx
+│   │   │   ├── spinner.tsx
+│   │   │   ├── switch.tsx
+│   │   │   ├── table.tsx
+│   │   │   ├── tabs.tsx
+│   │   │   ├── textarea.tsx
+│   │   │   ├── toggle-group.tsx
+│   │   │   ├── toggle.tsx
+│   │   │   └── tooltip.tsx
+│   │   └── user-avatar.tsx     # User avatar component
 │   ├── hooks/
 │   │   └── use-mobile.ts       # Custom React hooks
-│   └── lib/
-│       └── utils.ts            # Utility functions
+│   ├── lib/
+│   │   ├── firebase.ts         # Firebase configuration
+│   │   └── utils.ts            # Utility functions
+│   └── store/
+│       ├── index.ts            # Store exports
+│       └── user-store.ts       # User state management
 └── tsconfig.json               # TypeScript configuration
 ```
+
+## Page Structure
+
+### Authentication Flow
+
+- **`/login`** - Login and signup page with Firebase authentication
+  - Supports email/password and Google OAuth
+  - Toggle between login and signup modes
+  - Redirects to `/canvas` on successful authentication
+
+### Main Application
+
+- **`/canvas`** - Main collaborative design canvas interface
+  - Protected route requiring authentication
+  - Displays connection status and online users
+  - Canvas implementation using Konva for 2D graphics
+  - Shape creation tools and collaborative features
+  - User avatar and navigation components
+
+### State Management
+
+- **`store/user-store.ts`** - Zustand store for user authentication state
+- **`lib/firebase.ts`** - Firebase configuration and authentication setup
 
 ## Installed Packages
 
@@ -112,6 +145,8 @@ design-canvas/
 - **embla-carousel-react**: Carousel component
 - **firebase**: Firebase SDK
 - **input-otp**: OTP input component
+- **konva**: 2D canvas library for graphics and animations
+- **konva-canvas**: Canvas rendering engine for Konva
 - **lucide-react**: Icon library
 - **next**: Next.js React framework (v15.5.5)
 - **next-firebase-auth-edge**: Firebase auth for Next.js Edge Runtime
@@ -143,4 +178,65 @@ design-canvas/
 
 ## Project Type
 
-Next.js 15 application with TypeScript, Tailwind CSS, and comprehensive UI component library based on Radix UI primitives.
+Next.js 15 application with TypeScript, Tailwind CSS, comprehensive UI component library based on Radix UI primitives, and Konva for 2D canvas graphics.
+
+## Development Guidelines
+
+### Package Management
+
+- **Use pnpm exclusively** for package management
+- Never use npm or yarn - pnpm provides better performance and disk efficiency
+- Use `pnpm install` for installing dependencies
+- Use `pnpm add <package>` for adding new packages
+- Use `pnpm remove <package>` for removing packages
+
+### File Size Guidelines
+
+- **Keep files under 350 lines** when possible for optimal readability
+- If a file exceeds 350 lines, consider breaking it into smaller components
+- Split large components into logical sub-components
+- Extract utility functions into separate files
+- Use composition over large monolithic components
+
+### File Organization Rules
+
+#### Layout Files (`layout.tsx`)
+
+- Use for general page structure and common UI elements
+- Handle shared layouts, navigation, headers, footers
+- Should contain minimal business logic
+- Focus on structural organization and common styling
+
+#### Page Files (`page.tsx`)
+
+- Use for data fetching and page-specific logic
+- Handle API calls, state management, and data processing
+- Should delegate UI rendering to components
+- Keep page files focused on data and routing logic
+
+#### Component Organization
+
+- **Store components in `src/components/` folder**
+- **Create page-specific folders** for components used only by specific pages
+  - Example: `src/components/login/` for login page components
+  - Example: `src/components/canvas/` for canvas page components
+- **Use `src/components/ui/`** for reusable UI components (already established)
+- **Use `src/components/`** for shared components used across multiple pages
+- **Naming convention**: Use kebab-case for folder names, PascalCase for component files
+
+#### Component Structure Examples
+
+```
+src/components/
+├── ui/                    # Reusable UI components
+├── login/                 # Login page specific components
+│   ├── login-form.tsx
+│   └── auth-provider.tsx
+├── canvas/                # Canvas page specific components
+│   ├── canvas-toolbar.tsx
+│   ├── shape-tools.tsx
+│   └── collaboration-panel.tsx
+└── shared/                # Components used across multiple pages
+    ├── navigation.tsx
+    └── footer.tsx
+```

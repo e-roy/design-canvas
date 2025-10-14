@@ -12,8 +12,8 @@ This is a hard gate. To pass the MVP checkpoint, you must have:
 - [ ] Real-time sync between 2+ users
 - [ ] Multiplayer cursors with name labels
 - [ ] Presence awareness (who's online)
-- [ ] User authentication (users have accounts/names)
-- [ ] Deployed and publicly accessible
+- [x] User authentication (users have accounts/names)
+- [x] Deployed and publicly accessible
 
 **Focus**: The focus is on collaborative infrastructure.
 

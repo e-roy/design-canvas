@@ -1,0 +1,133 @@
+"use client";
+
+import React, { useRef, useState, useCallback } from "react";
+import { Circle } from "react-konva";
+import Konva from "konva";
+import { Shape } from "../types";
+
+interface CircleProps {
+  shape: Shape;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onDragStart: (id: string) => void;
+  onDragMove: (id: string, x: number, y: number) => void;
+  onDragEnd: (id: string) => void;
+  onShapeChange: (id: string, updates: Partial<Shape>) => void;
+  virtualWidth: number;
+  virtualHeight: number;
+}
+
+export function CircleShape({
+  shape,
+  isSelected,
+  onSelect,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onShapeChange,
+  virtualWidth,
+  virtualHeight,
+}: CircleProps) {
+  const circleRef = useRef<Konva.Circle>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = useCallback(
+    (e: Konva.KonvaEventObject<DragEvent>) => {
+      setIsDragging(true);
+      onDragStart(shape.id);
+
+      // Bring to front
+      const circle = circleRef.current;
+      if (circle) {
+        circle.moveToTop();
+      }
+    },
+    [shape.id, onDragStart]
+  );
+
+  const handleDragMove = useCallback(
+    (e: Konva.KonvaEventObject<DragEvent>) => {
+      const circle = circleRef.current;
+      if (!circle) return;
+
+      let newX = circle.x();
+      let newY = circle.y();
+      const radius = shape.radius || 50;
+
+      // Constrain to canvas boundaries (accounting for radius)
+      newX = Math.max(
+        0,
+        Math.min(virtualWidth - (shape.radius || 50) * 2, newX)
+      );
+      newY = Math.max(
+        0,
+        Math.min(virtualHeight - (shape.radius || 50) * 2, newY)
+      );
+
+      // Update position
+      circle.position({ x: newX, y: newY });
+
+      onDragMove(shape.id, newX, newY);
+    },
+    [shape.id, shape.radius, onDragMove, virtualWidth, virtualHeight]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    onDragEnd(shape.id);
+  }, [shape.id, onDragEnd]);
+
+  const handleClick = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      e.cancelBubble = true;
+      onSelect(shape.id);
+    },
+    [shape.id, onSelect]
+  );
+
+  const handleTransform = useCallback(
+    (e: Konva.KonvaEventObject<Event>) => {
+      const circle = circleRef.current;
+      if (!circle) return;
+
+      const newRadius = circle.radius() * circle.scaleX();
+      const newRotation = circle.rotation();
+
+      // Reset scale
+      circle.scaleX(1);
+      circle.scaleY(1);
+
+      onShapeChange(shape.id, {
+        radius: Math.max(5, newRadius),
+        rotation: newRotation,
+        x: circle.x(),
+        y: circle.y(),
+      });
+    },
+    [shape.id, onShapeChange]
+  );
+
+  const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
+  const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
+
+  return (
+    <Circle
+      ref={circleRef}
+      x={shape.x}
+      y={shape.y}
+      radius={shape.radius || 50}
+      fill={shape.fill || "#ffffff"}
+      stroke={strokeColor}
+      strokeWidth={strokeWidth}
+      rotation={shape.rotation || 0}
+      draggable={true}
+      transformsEnabled="all"
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
+      onDragEnd={handleDragEnd}
+      onClick={handleClick}
+      onTransform={handleTransform}
+      onTransformEnd={handleTransform}
+    />
+  );
+}
