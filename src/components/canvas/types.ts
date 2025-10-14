@@ -28,6 +28,7 @@ export interface Shape {
   stroke?: string;
   strokeWidth?: number;
   rotation?: number;
+  zIndex?: number;
 }
 
 export interface DragState {
@@ -59,7 +60,10 @@ export interface CanvasProps {
   gridSize?: number;
   showGrid?: boolean;
   className?: string;
+  shapes?: Shape[];
   onShapeCreate?: (shape: Shape) => void;
+  onShapeUpdate?: (shapeId: string, updates: Partial<Shape>) => void;
+  onShapeDelete?: (shapeId: string) => void;
 }
 
 export interface ViewportProps {

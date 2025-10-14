@@ -29,11 +29,11 @@ export function RectangleShape({
   virtualHeight,
 }: RectangleProps) {
   const rectRef = useRef<Konva.Rect>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [_isDragging, _setIsDragging] = useState(false);
 
   const handleDragStart = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
-      setIsDragging(true);
+    (_e: Konva.KonvaEventObject<DragEvent>) => {
+      _setIsDragging(true);
       onDragStart(shape.id);
 
       // Bring to front
@@ -46,7 +46,7 @@ export function RectangleShape({
   );
 
   const handleDragMove = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
+    (_e: Konva.KonvaEventObject<DragEvent>) => {
       const rect = rectRef.current;
       if (!rect) return;
 
@@ -73,7 +73,7 @@ export function RectangleShape({
   );
 
   const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
+    _setIsDragging(false);
     onDragEnd(shape.id);
   }, [shape.id, onDragEnd]);
 
@@ -86,7 +86,7 @@ export function RectangleShape({
   );
 
   const handleTransform = useCallback(
-    (e: Konva.KonvaEventObject<Event>) => {
+    (_e: Konva.KonvaEventObject<Event>) => {
       const rect = rectRef.current;
       if (!rect) return;
 

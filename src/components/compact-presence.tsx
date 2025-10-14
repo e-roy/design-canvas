@@ -20,7 +20,7 @@ interface CompactPresenceProps {
 export function CompactPresence({
   projectId,
   maxUsers = 20,
-  showCount = true,
+  showCount: _showCount = true,
   className,
 }: CompactPresenceProps) {
   const { users, projectUsers, isOnline } = usePresence(projectId);

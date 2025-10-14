@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   forwardRef,
 } from "react";
 import { Stage, Layer, Rect } from "react-konva";
@@ -20,7 +21,6 @@ const VIRTUAL_WIDTH = 5000;
 const VIRTUAL_HEIGHT = 5000;
 const MIN_SCALE = 0.05; // Lower minimum scale to allow seeing full canvas
 const MAX_SCALE = 5;
-const SCALE_STEP = 0.1;
 
 export interface CanvasRef {
   setTool: (tool: "select" | "pan" | "rectangle" | "circle" | "text") => void;
@@ -39,7 +39,10 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     gridSize = 50,
     showGrid = true,
     className = "",
+    shapes: externalShapes = [],
     onShapeCreate,
+    onShapeUpdate,
+    onShapeDelete,
   },
   ref
 ) {
@@ -49,7 +52,6 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     scale: 1,
   });
 
-  const [shapes, setShapes] = useState<Shape[]>([]);
   const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
   const [isPanMode, setIsPanMode] = useState(false);
   const [isCreatingShape, setIsCreatingShape] = useState(false);
@@ -60,6 +62,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     null
   );
   const [previewShape, setPreviewShape] = useState<Shape | null>(null);
+
+  // Use external shapes if provided, otherwise use empty array
+  const shapes = useMemo(() => externalShapes || [], [externalShapes]);
 
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,37 +84,36 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     [currentTool]
   );
 
-  const handleShapeDragStart = useCallback((id: string) => {
-    // Move shape to front when dragging starts
-    setShapes((prev) =>
-      prev.map((shape) =>
-        shape.id === id ? { ...shape, zIndex: Date.now() } : shape
-      )
-    );
-  }, []);
+  const handleShapeDragStart = useCallback(
+    (id: string) => {
+      // Move shape to front when dragging starts
+      if (onShapeUpdate) {
+        onShapeUpdate(id, { zIndex: Date.now() });
+      }
+    },
+    [onShapeUpdate]
+  );
 
   const handleShapeDragMove = useCallback(
     (id: string, x: number, y: number) => {
-      setShapes((prev) =>
-        prev.map((shape) => (shape.id === id ? { ...shape, x, y } : shape))
-      );
+      if (onShapeUpdate) {
+        onShapeUpdate(id, { x, y });
+      }
     },
-    []
+    [onShapeUpdate]
   );
 
-  const handleShapeDragEnd = useCallback((id: string) => {
+  const handleShapeDragEnd = useCallback((_id: string) => {
     // Shape drag end handled in individual shape components
   }, []);
 
   const handleShapeChange = useCallback(
     (id: string, updates: Partial<Shape>) => {
-      setShapes((prev) =>
-        prev.map((shape) =>
-          shape.id === id ? { ...shape, ...updates } : shape
-        )
-      );
+      if (onShapeUpdate) {
+        onShapeUpdate(id, updates);
+      }
     },
-    []
+    [onShapeUpdate]
   );
 
   const handleCreateShape = useCallback(
@@ -153,19 +157,25 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         strokeWidth: 1,
       };
 
-      setShapes((prev) => [...prev, newShape]);
       setIsCreatingShape(false);
       setCurrentTool("select");
 
-      // Notify parent component
+      // Notify parent component (it will handle saving to database)
       onShapeCreate?.(newShape);
     },
-    [currentTool, generateId, previewShape, onShapeCreate]
+    [
+      currentTool,
+      generateId,
+      previewShape,
+      onShapeCreate,
+      virtualWidth,
+      virtualHeight,
+    ]
   );
 
   // Handle stage mouse down for starting shape creation
   const handleStageMouseDown = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_e: Konva.KonvaEventObject<MouseEvent>) => {
       if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
         return;
 
@@ -208,12 +218,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       setPreviewShape(preview);
     },
-    [isCreatingShape, currentTool, viewport]
+    [isCreatingShape, currentTool, viewport, virtualWidth, virtualHeight]
   );
 
   // Handle stage mouse move for updating preview shape
   const handleStageMouseMove = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_e: Konva.KonvaEventObject<MouseEvent>) => {
       if (!isCreatingShape || !creationStartPoint || !previewShape) return;
 
       const stage = stageRef.current;
@@ -264,7 +274,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   // Handle stage mouse up for finalizing shape creation
   const handleStageMouseUp = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_e: Konva.KonvaEventObject<MouseEvent>) => {
       if (!isCreatingShape || !creationStartPoint || !previewShape) return;
 
       const stage = stageRef.current;
@@ -295,14 +305,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       creationStartPoint,
       previewShape,
       currentTool,
-      viewport,
       handleCreateShape,
     ]
   );
 
   // Handle stage click for creating shapes (fallback for text)
   const handleStageClick = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_e: Konva.KonvaEventObject<MouseEvent>) => {
       if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
         return;
 
@@ -334,7 +343,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         handleCreateShape(currentTool, constrainedX, constrainedY);
       }
     },
-    [isCreatingShape, currentTool, viewport, handleCreateShape]
+    [
+      isCreatingShape,
+      currentTool,
+      viewport,
+      handleCreateShape,
+      virtualWidth,
+      virtualHeight,
+    ]
   );
 
   // Canvas methods for imperative access
@@ -353,17 +369,27 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   const getShapes = useCallback(() => shapes, [shapes]);
 
-  const deleteShape = useCallback((id: string) => {
-    setShapes((prev) => prev.filter((shape) => shape.id !== id));
-    setSelectedShapeIds((prev) =>
-      prev.filter((selectedId) => selectedId !== id)
-    );
-  }, []);
+  const deleteShape = useCallback(
+    (id: string) => {
+      if (onShapeDelete) {
+        onShapeDelete(id);
+      }
+      setSelectedShapeIds((prev) =>
+        prev.filter((selectedId) => selectedId !== id)
+      );
+    },
+    [onShapeDelete]
+  );
 
   const clearCanvas = useCallback(() => {
-    setShapes([]);
+    // Clear all shapes - parent component should handle database cleanup
+    shapes.forEach((shape) => {
+      if (onShapeDelete) {
+        onShapeDelete(shape.id);
+      }
+    });
     setSelectedShapeIds([]);
-  }, []);
+  }, [shapes, onShapeDelete]);
 
   // Expose methods to parent component
   useImperativeHandle(

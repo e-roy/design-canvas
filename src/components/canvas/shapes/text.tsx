@@ -38,13 +38,13 @@ export function TextShape({
   virtualHeight,
 }: TextProps) {
   const textRef = useRef<Konva.Text>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [_isDragging, _setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(shape.text || "");
 
   const handleDragStart = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
-      setIsDragging(true);
+    (_e: Konva.KonvaEventObject<DragEvent>) => {
+      _setIsDragging(true);
       onDragStart(shape.id);
 
       // Bring to front
@@ -57,7 +57,7 @@ export function TextShape({
   );
 
   const handleDragMove = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
+    (_e: Konva.KonvaEventObject<DragEvent>) => {
       const text = textRef.current;
       if (!text) return;
 
@@ -81,7 +81,7 @@ export function TextShape({
   );
 
   const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
+    _setIsDragging(false);
     onDragEnd(shape.id);
   }, [shape.id, onDragEnd]);
 
@@ -94,7 +94,7 @@ export function TextShape({
   );
 
   const handleTransform = useCallback(
-    (e: Konva.KonvaEventObject<Event>) => {
+    (_e: Konva.KonvaEventObject<Event>) => {
       const text = textRef.current;
       if (!text) return;
 
@@ -114,7 +114,7 @@ export function TextShape({
   );
 
   const handleDblClick = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_e: Konva.KonvaEventObject<MouseEvent>) => {
       setIsEditing(true);
       setEditText(shape.text || "");
     },

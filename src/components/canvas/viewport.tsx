@@ -3,15 +3,15 @@
 import React, { useRef, useCallback, useEffect } from "react";
 import { Group } from "react-konva";
 import Konva from "konva";
-import { ViewportProps, CanvasViewport, Point } from "./types";
+import { ViewportProps, Point } from "./types";
 
 export function Viewport({
-  canvasWidth,
-  canvasHeight,
+  canvasWidth: _canvasWidth,
+  canvasHeight: _canvasHeight,
   virtualWidth,
   virtualHeight,
   viewport,
-  onViewportChange,
+  onViewportChange: _onViewportChange,
   onPanStart,
   onPanMove,
   onPanEnd,

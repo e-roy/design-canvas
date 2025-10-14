@@ -24,6 +24,30 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    // Canvas documents - users can read/write canvas documents
+    match /canvas_documents/{documentId} {
+      // Allow read for authenticated users (for loading existing canvases)
+      allow read: if isAuthenticated();
+      // Allow write for authenticated users (for creating/updating canvases)
+      allow write: if isAuthenticated();
+    }
+
+    // Canvas shapes - users can read/write shapes in canvas documents
+    match /canvas_shapes/{documentId} {
+      // Allow read for authenticated users (for loading shapes)
+      allow read: if isAuthenticated();
+      // Allow write for authenticated users (for creating/updating shapes)
+      allow write: if isAuthenticated();
+    }
+
+    // User cursors - users can read/write their own cursors in canvas documents
+    match /user_cursors/{userId} {
+      // Allow read for authenticated users (for seeing other users' cursors)
+      allow read: if isAuthenticated();
+      // Allow write only for the user who owns the cursor
+      allow write: if isAuthenticated() && getUserId() == userId;
+    }
+
     // Default rule for other collections (restrictive)
     match /{document=**} {
       allow read, write: if false;

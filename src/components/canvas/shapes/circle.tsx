@@ -29,11 +29,11 @@ export function CircleShape({
   virtualHeight,
 }: CircleProps) {
   const circleRef = useRef<Konva.Circle>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [_isDragging, _setIsDragging] = useState(false);
 
   const handleDragStart = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
-      setIsDragging(true);
+    (_e: Konva.KonvaEventObject<DragEvent>) => {
+      _setIsDragging(true);
       onDragStart(shape.id);
 
       // Bring to front
@@ -46,7 +46,7 @@ export function CircleShape({
   );
 
   const handleDragMove = useCallback(
-    (e: Konva.KonvaEventObject<DragEvent>) => {
+    (_e: Konva.KonvaEventObject<DragEvent>) => {
       const circle = circleRef.current;
       if (!circle) return;
 
@@ -73,7 +73,7 @@ export function CircleShape({
   );
 
   const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
+    _setIsDragging(false);
     onDragEnd(shape.id);
   }, [shape.id, onDragEnd]);
 
@@ -86,7 +86,7 @@ export function CircleShape({
   );
 
   const handleTransform = useCallback(
-    (e: Konva.KonvaEventObject<Event>) => {
+    (_e: Konva.KonvaEventObject<Event>) => {
       const circle = circleRef.current;
       if (!circle) return;
 

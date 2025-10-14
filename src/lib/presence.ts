@@ -8,7 +8,6 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  writeBatch,
   getDocs,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -172,7 +171,7 @@ export class PresenceManager {
 
       if (!projectDoc.empty) {
         const data = projectDoc.docs[0].data() as ProjectPresence;
-        const { [userId]: removed, ...remainingUsers } = data.users;
+        const { [userId]: _removed, ...remainingUsers } = data.users;
 
         if (Object.keys(remainingUsers).length === 0) {
           // If no users left, delete the project presence document

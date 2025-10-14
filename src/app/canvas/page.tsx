@@ -6,10 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
 import { CompactPresence } from "@/components/compact-presence";
+import { useCanvas } from "@/hooks/use-canvas";
+import { useUserStore } from "@/store/user-store";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Canvas, CanvasRef, Shape } from "@/components/canvas";
-import { Square, Circle, Type, MousePointer, Hand } from "lucide-react";
+import { StoredShape } from "@/types";
+import { Square, Circle, MousePointer, Hand } from "lucide-react";
+
+// Use a fixed document ID for the main collaborative canvas
+const MAIN_CANVAS_ID = "main-collaborative-canvas";
 
 export default function CanvasPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -19,6 +25,16 @@ export default function CanvasPage() {
   >("select");
   const router = useRouter();
   const canvasRef = useRef<CanvasRef>(null);
+  const { user } = useUserStore();
+
+  // Use the canvas collaboration hook
+  const {
+    canvasDocument,
+    shapes,
+    error: canvasError,
+    saveShape,
+    deleteShape,
+  } = useCanvas(MAIN_CANVAS_ID);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -34,6 +50,67 @@ export default function CanvasPage() {
     return () => unsubscribe();
   }, [router]);
 
+  // Show error if canvas doesn't exist (user needs to create it manually)
+  if (
+    canvasError ===
+    "Canvas not found. Please check if the canvas document exists in Firebase."
+  ) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="text-center p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              Canvas Setup Required
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              The collaborative canvas document needs to be created in Firebase.
+            </p>
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-left text-sm">
+              <p className="font-medium mb-2">To create the canvas document:</p>
+              <ol className="list-decimal list-inside space-y-1 text-gray-600 dark:text-gray-400">
+                <li>Go to Firebase Console → Firestore Database</li>
+                <li>
+                  Create a new document in &apos;canvas_documents&apos;
+                  collection
+                </li>
+                <li>
+                  Set Document ID:&nbsp;
+                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">
+                    main-collaborative-canvas
+                  </code>
+                </li>
+                <li>Add these fields:</li>
+              </ol>
+              <pre className="mt-2 text-xs bg-gray-200 dark:bg-gray-700 p-2 rounded overflow-x-auto">
+                {`{
+  "name": "Main Collaborative Canvas",
+  "description": "A collaborative canvas for real-time editing",
+  "createdBy": "your-user-id",
+  "createdAt": "2025-01-01T00:00:00.000Z",
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "lastEditedBy": "your-user-id",
+  "collaborators": ["your-user-id"],
+  "isPublic": true,
+  "version": 1
+}`}
+              </pre>
+            </div>
+            <Button onClick={() => window.location.reload()} className="mt-4">
+              Retry Loading Canvas
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Handle shape deletion
+  const handleShapeDelete = (shapeId: string) => {
+    if (canvasDocument) {
+      deleteShape(shapeId);
+    }
+  };
+
   const handleToolChange = (
     tool: "select" | "pan" | "rectangle" | "circle" | "text"
   ) => {
@@ -41,8 +118,60 @@ export default function CanvasPage() {
     canvasRef.current?.setTool(tool);
   };
 
-  const handleShapeCreate = (shape: Shape) => {
-    console.log("Shape created:", shape);
+  // Convert database shapes to canvas shapes for rendering
+  const canvasShapes: Shape[] = shapes.map((storedShape) => ({
+    id: storedShape.id,
+    type: storedShape.type,
+    x: storedShape.x,
+    y: storedShape.y,
+    width: storedShape.width,
+    height: storedShape.height,
+    radius: storedShape.radius,
+    text: storedShape.text,
+    fontSize: storedShape.fontSize,
+    fill: storedShape.fill,
+    stroke: storedShape.stroke,
+    strokeWidth: storedShape.strokeWidth,
+    rotation: storedShape.rotation,
+    zIndex: storedShape.zIndex,
+  }));
+
+  const handleShapeCreate = async (shape: Shape) => {
+    if (!canvasDocument || !user) return;
+
+    try {
+      // Filter out undefined values for Firestore
+      const shapeData: Partial<
+        Omit<StoredShape, "id" | "createdAt" | "updatedAt" | "updatedBy">
+      > & { createdBy: string } = {
+        x: shape.x,
+        y: shape.y,
+        type: shape.type,
+        zIndex: shape.zIndex || Date.now(),
+        createdBy: user.uid,
+      };
+
+      // Only add defined properties
+      if (shape.width !== undefined) shapeData.width = shape.width;
+      if (shape.height !== undefined) shapeData.height = shape.height;
+      if (shape.radius !== undefined) shapeData.radius = shape.radius;
+      if (shape.text !== undefined) shapeData.text = shape.text;
+      if (shape.fontSize !== undefined) shapeData.fontSize = shape.fontSize;
+      if (shape.fill !== undefined) shapeData.fill = shape.fill;
+      if (shape.stroke !== undefined) shapeData.stroke = shape.stroke;
+      if (shape.strokeWidth !== undefined)
+        shapeData.strokeWidth = shape.strokeWidth;
+      if (shape.rotation !== undefined) shapeData.rotation = shape.rotation;
+
+      await saveShape(
+        shapeData as Omit<
+          StoredShape,
+          "id" | "createdAt" | "updatedAt" | "updatedBy"
+        >
+      );
+    } catch (error) {
+      console.error("Error saving shape:", error);
+    }
   };
 
   if (isLoading) {
@@ -91,7 +220,9 @@ export default function CanvasPage() {
             height={
               typeof window !== "undefined" ? window.innerHeight - 80 : 800
             }
+            shapes={canvasShapes}
             onShapeCreate={handleShapeCreate}
+            onShapeDelete={handleShapeDelete}
             className="w-full h-full"
           />
         </div>

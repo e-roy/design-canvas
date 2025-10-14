@@ -95,7 +95,8 @@ design-canvas/
 │   │   │   └── tooltip.tsx
 │   │   └── user-avatar.tsx     # User avatar component
 │   ├── hooks/
-│   │   └── use-mobile.ts       # Custom React hooks
+│   │   ├── use-mobile.ts       # Mobile detection hook
+│   │   └── use-canvas.ts       # Canvas collaboration hook
 │   ├── lib/
 │   │   ├── firebase.ts         # Firebase configuration
 │   │   └── utils.ts            # Utility functions
@@ -119,11 +120,13 @@ design-canvas/
 
 ### Main Application
 
-- **`/canvas`** - Main collaborative design canvas interface
+- **`/canvas`** - Main collaborative canvas interface
   - Protected route requiring authentication
+  - Single collaborative canvas with real-time synchronization
   - Displays connection status and online users
   - Canvas implementation using Konva for 2D graphics
-  - Shape creation tools and collaborative features
+  - Shape creation tools with database persistence
+  - Real-time collaborative editing
   - User avatar and navigation components
 
 ### State Management
@@ -131,6 +134,7 @@ design-canvas/
 - **`store/user-store.ts`** - Zustand store for user authentication state
 - **`lib/firebase.ts`** - Firebase configuration and authentication setup
 - **`types/index.ts`** - TypeScript type definitions and interfaces
+- **`lib/canvas-service.ts`** - Canvas database operations and real-time sync
 
 ## Installed Packages
 
