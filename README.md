@@ -6,12 +6,12 @@ A collaborative design canvas application built with Next.js 15, featuring real-
 
 This is a hard gate. To pass the MVP checkpoint, you must have:
 
-- [ ] Basic canvas with pan/zoom
-- [ ] At least one shape type (rectangle, circle, or text)
-- [ ] Ability to create and move objects
+- [x] Basic canvas with pan/zoom
+- [x] At least one shape type (rectangle, circle, or text)
+- [x] Ability to create and move objects
 - [ ] Real-time sync between 2+ users
 - [ ] Multiplayer cursors with name labels
-- [ ] Presence awareness (who's online)
+- [x] Presence awareness (who's online)
 - [x] User authentication (users have accounts/names)
 - [x] Deployed and publicly accessible
 

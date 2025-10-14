@@ -21,6 +21,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  updateProfile,
 } from "firebase/auth";
 
 export default function LoginPage() {
@@ -54,18 +55,25 @@ export default function LoginPage() {
 
         // Update display name if provided
         if (displayName && userCredential.user) {
-          // Note: Display name will be set automatically for new users
-          // For existing users, this would require additional Firebase Admin SDK
-          console.log("Display name will be set:", displayName);
+          await updateProfile(userCredential.user, {
+            displayName: displayName,
+          });
         }
       }
 
       // Store user data in Zustand store
       if (auth.currentUser) {
+        // Wait a moment for the profile update to propagate
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // For new users, use the provided display name if Firebase doesn't have one
+        const finalDisplayName =
+          auth.currentUser.displayName || (!isLogin ? displayName : null);
+
         setUser({
           uid: auth.currentUser.uid,
           email: auth.currentUser.email,
-          displayName: auth.currentUser.displayName,
+          displayName: finalDisplayName,
           photoURL: auth.currentUser.photoURL,
         });
       }

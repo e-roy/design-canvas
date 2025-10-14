@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
+import { CompactPresence } from "@/components/compact-presence";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Canvas, CanvasRef, Shape } from "@/components/canvas";
@@ -68,6 +69,11 @@ export default function CanvasPage() {
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
             <h1 className="text-xl font-semibold">Design Canvas</h1>
+          </div>
+
+          {/* Center - Online Users */}
+          <div className="flex-1 flex justify-center">
+            <CompactPresence projectId="canvas" showCount={true} />
           </div>
 
           <div className="flex items-center gap-2">

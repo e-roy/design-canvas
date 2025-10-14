@@ -99,7 +99,10 @@ design-canvas/
 │   ├── lib/
 │   │   ├── firebase.ts         # Firebase configuration
 │   │   └── utils.ts            # Utility functions
-│   └── store/
+│   ├── types/
+│   │   ├── index.ts            # Main types export file
+│   │   └── presence.ts         # Presence-related type definitions
+│   ├── store/
 │       ├── index.ts            # Store exports
 │       └── user-store.ts       # User state management
 └── tsconfig.json               # TypeScript configuration
@@ -127,6 +130,7 @@ design-canvas/
 
 - **`store/user-store.ts`** - Zustand store for user authentication state
 - **`lib/firebase.ts`** - Firebase configuration and authentication setup
+- **`types/index.ts`** - TypeScript type definitions and interfaces
 
 ## Installed Packages
 
@@ -222,6 +226,9 @@ Next.js 15 application with TypeScript, Tailwind CSS, comprehensive UI component
   - Example: `src/components/canvas/` for canvas page components
 - **Use `src/components/ui/`** for reusable UI components (already established)
 - **Use `src/components/`** for shared components used across multiple pages
+- **Use `src/types/`** for TypeScript type definitions and interfaces
+  - Organize types by domain (e.g., `presence.ts`, `auth.ts`, `canvas.ts`)
+  - Use `index.ts` to export all types from domain files
 - **Naming convention**: Use kebab-case for folder names, PascalCase for component files
 
 #### Component Structure Examples
@@ -239,4 +246,10 @@ src/components/
 └── shared/                # Components used across multiple pages
     ├── navigation.tsx
     └── footer.tsx
+
+src/types/
+├── index.ts               # Main export file for all types
+├── presence.ts            # Presence system types
+├── auth.ts                # Authentication types (future)
+└── canvas.ts              # Canvas-specific types (future)
 ```

@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to get user ID
+    function getUserId() {
+      return request.auth.uid;
+    }
+
+    // Presence collection - users can manage their own presence
+    match /presence/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && getUserId() == userId;
+    }
+
+    // Project presence collection - users can read project presence and manage their own entries
+    match /project_presence/{projectId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Default rule for other collections (restrictive)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
