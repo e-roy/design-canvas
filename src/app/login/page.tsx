@@ -14,8 +14,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { XCircle, X } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useUserStore } from "@/store";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -81,11 +83,8 @@ export default function LoginPage() {
       // Redirect to canvas page - the middleware will handle authentication
       router.push("/canvas");
     } catch (error: unknown) {
-      console.error("Authentication error:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Authentication failed. Please try again.";
+      // Error logging is handled in getAuthErrorMessage to avoid console spam
+      const errorMessage = getAuthErrorMessage(error);
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -113,11 +112,8 @@ export default function LoginPage() {
       // Redirect to canvas page - the middleware will handle authentication
       router.push("/canvas");
     } catch (error: unknown) {
-      console.error("Google authentication error:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Google authentication failed. Please try again.";
+      // Error logging is handled in getAuthErrorMessage to avoid console spam
+      const errorMessage = getAuthErrorMessage(error);
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -128,7 +124,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Design Canvas</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            <Link href="/">Design Canvas</Link>
+          </CardTitle>
           <CardDescription>
             {isLogin ? "Sign in to your account" : "Create a new account"}
           </CardDescription>
@@ -137,7 +135,27 @@ export default function LoginPage() {
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <XCircle className="h-5 w-5 text-red-400" />
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {error}
+                  </p>
+                </div>
+                <div className="ml-auto pl-3">
+                  <div className="-mx-1.5 -my-1.5">
+                    <button
+                      onClick={() => setError("")}
+                      className="inline-flex bg-red-50 dark:bg-red-900/20 rounded-md p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-red-50 focus:ring-red-600"
+                    >
+                      <span className="sr-only">Dismiss</span>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -241,12 +259,6 @@ export default function LoginPage() {
               {isLogin
                 ? "Don't have an account? Sign up"
                 : "Already have an account? Sign in"}
-            </Button>
-          </div>
-
-          <div className="text-center pt-4">
-            <Button asChild variant="outline" size="sm" disabled={isLoading}>
-              <Link href="/">← Back to Home</Link>
             </Button>
           </div>
         </CardContent>

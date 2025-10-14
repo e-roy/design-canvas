@@ -103,7 +103,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     [onShapeUpdate]
   );
 
-  const handleShapeDragEnd = useCallback((_id: string) => {
+  const handleShapeDragEnd = useCallback(() => {
     // Shape drag end handled in individual shape components
   }, []);
 
@@ -174,184 +174,178 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   );
 
   // Handle stage mouse down for starting shape creation
-  const handleStageMouseDown = useCallback(
-    (_e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
-        return;
+  const handleStageMouseDown = useCallback(() => {
+    if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
+      return;
 
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    // Clear selection when creating new shape
+    setSelectedShapeIds([]);
+
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    // Convert screen coordinates to virtual canvas coordinates
+    const virtualPoint = {
+      x: pointer.x / viewport.scale + viewport.x,
+      y: pointer.y / viewport.scale + viewport.y,
+    };
+
+    // Constrain creation start point to canvas boundaries
+    const constrainedPoint = {
+      x: Math.max(0, Math.min(virtualWidth - 100, virtualPoint.x)),
+      y: Math.max(0, Math.min(virtualHeight - 100, virtualPoint.y)),
+    };
+
+    setCreationStartPoint(constrainedPoint);
+
+    // Create preview shape
+    const preview: Shape = {
+      id: "preview",
+      type: currentTool,
+      x: constrainedPoint.x,
+      y: constrainedPoint.y,
+      ...(currentTool === "rectangle" && { width: 0, height: 0 }),
+      ...(currentTool === "circle" && { radius: 0 }),
+      ...(currentTool === "text" && { text: "", fontSize: 16 }),
+      fill: "#ffffff",
+      stroke: "#3b82f6",
+      strokeWidth: 2,
+    };
+
+    setPreviewShape(preview);
+  }, [isCreatingShape, currentTool, viewport, virtualWidth, virtualHeight]);
+
+  // Handle stage mouse move for updating preview shape
+  const handleStageMouseMove = useCallback(() => {
+    if (!isCreatingShape || !creationStartPoint || !previewShape) return;
+
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    // Convert screen coordinates to virtual canvas coordinates
+    const virtualPoint = {
+      x: pointer.x / viewport.scale + viewport.x,
+      y: pointer.y / viewport.scale + viewport.y,
+    };
+
+    // Update preview shape based on drag distance
+    if (currentTool === "rectangle") {
+      const width = Math.abs(virtualPoint.x - creationStartPoint.x);
+      const height = Math.abs(virtualPoint.y - creationStartPoint.y);
+      setPreviewShape((prev) =>
+        prev
+          ? {
+              ...prev,
+              x: Math.min(creationStartPoint.x, virtualPoint.x),
+              y: Math.min(creationStartPoint.y, virtualPoint.y),
+              width: Math.max(width, 10),
+              height: Math.max(height, 10),
+            }
+          : null
+      );
+    } else if (currentTool === "circle") {
+      const radius =
+        Math.sqrt(
+          Math.pow(virtualPoint.x - creationStartPoint.x, 2) +
+            Math.pow(virtualPoint.y - creationStartPoint.y, 2)
+        ) / 2;
+      setPreviewShape((prev) =>
+        prev
+          ? {
+              ...prev,
+              radius: Math.max(radius, 5),
+            }
+          : null
+      );
+    }
+  }, [
+    isCreatingShape,
+    creationStartPoint,
+    previewShape,
+    currentTool,
+    viewport,
+  ]);
+
+  // Handle stage mouse up for finalizing shape creation
+  const handleStageMouseUp = useCallback(() => {
+    if (!isCreatingShape || !creationStartPoint || !previewShape) return;
+
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    // Create final shape (only for rectangle, circle, text)
+    if (
+      currentTool === "rectangle" ||
+      currentTool === "circle" ||
+      currentTool === "text"
+    ) {
+      handleCreateShape(
+        currentTool,
+        creationStartPoint.x,
+        creationStartPoint.y
+      );
+    }
+
+    // Reset creation state
+    setCreationStartPoint(null);
+    setPreviewShape(null);
+  }, [
+    isCreatingShape,
+    creationStartPoint,
+    previewShape,
+    currentTool,
+    handleCreateShape,
+  ]);
+
+  // Handle stage click for creating shapes (fallback for text)
+  const handleStageClick = useCallback(() => {
+    if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
+      return;
+
+    // For text, create on click since it doesn't need drag sizing
+    if (currentTool === "text") {
       const stage = stageRef.current;
       if (!stage) return;
 
-      // Clear selection when creating new shape
       setSelectedShapeIds([]);
 
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
 
-      // Convert screen coordinates to virtual canvas coordinates
       const virtualPoint = {
         x: pointer.x / viewport.scale + viewport.x,
         y: pointer.y / viewport.scale + viewport.y,
       };
 
-      // Constrain creation start point to canvas boundaries
-      const constrainedPoint = {
-        x: Math.max(0, Math.min(virtualWidth - 100, virtualPoint.x)),
-        y: Math.max(0, Math.min(virtualHeight - 100, virtualPoint.y)),
-      };
+      // Constrain text position to canvas boundaries
+      const constrainedX = Math.max(
+        0,
+        Math.min(virtualWidth - 100, virtualPoint.x)
+      );
+      const constrainedY = Math.max(
+        0,
+        Math.min(virtualHeight - 50, virtualPoint.y)
+      );
 
-      setCreationStartPoint(constrainedPoint);
-
-      // Create preview shape
-      const preview: Shape = {
-        id: "preview",
-        type: currentTool,
-        x: constrainedPoint.x,
-        y: constrainedPoint.y,
-        ...(currentTool === "rectangle" && { width: 0, height: 0 }),
-        ...(currentTool === "circle" && { radius: 0 }),
-        ...(currentTool === "text" && { text: "", fontSize: 16 }),
-        fill: "#ffffff",
-        stroke: "#3b82f6",
-        strokeWidth: 2,
-      };
-
-      setPreviewShape(preview);
-    },
-    [isCreatingShape, currentTool, viewport, virtualWidth, virtualHeight]
-  );
-
-  // Handle stage mouse move for updating preview shape
-  const handleStageMouseMove = useCallback(
-    (_e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isCreatingShape || !creationStartPoint || !previewShape) return;
-
-      const stage = stageRef.current;
-      if (!stage) return;
-
-      const pointer = stage.getPointerPosition();
-      if (!pointer) return;
-
-      // Convert screen coordinates to virtual canvas coordinates
-      const virtualPoint = {
-        x: pointer.x / viewport.scale + viewport.x,
-        y: pointer.y / viewport.scale + viewport.y,
-      };
-
-      // Update preview shape based on drag distance
-      if (currentTool === "rectangle") {
-        const width = Math.abs(virtualPoint.x - creationStartPoint.x);
-        const height = Math.abs(virtualPoint.y - creationStartPoint.y);
-        setPreviewShape((prev) =>
-          prev
-            ? {
-                ...prev,
-                x: Math.min(creationStartPoint.x, virtualPoint.x),
-                y: Math.min(creationStartPoint.y, virtualPoint.y),
-                width: Math.max(width, 10),
-                height: Math.max(height, 10),
-              }
-            : null
-        );
-      } else if (currentTool === "circle") {
-        const radius =
-          Math.sqrt(
-            Math.pow(virtualPoint.x - creationStartPoint.x, 2) +
-              Math.pow(virtualPoint.y - creationStartPoint.y, 2)
-          ) / 2;
-        setPreviewShape((prev) =>
-          prev
-            ? {
-                ...prev,
-                radius: Math.max(radius, 5),
-              }
-            : null
-        );
-      }
-    },
-    [isCreatingShape, creationStartPoint, previewShape, currentTool, viewport]
-  );
-
-  // Handle stage mouse up for finalizing shape creation
-  const handleStageMouseUp = useCallback(
-    (_e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isCreatingShape || !creationStartPoint || !previewShape) return;
-
-      const stage = stageRef.current;
-      if (!stage) return;
-
-      const pointer = stage.getPointerPosition();
-      if (!pointer) return;
-
-      // Create final shape (only for rectangle, circle, text)
-      if (
-        currentTool === "rectangle" ||
-        currentTool === "circle" ||
-        currentTool === "text"
-      ) {
-        handleCreateShape(
-          currentTool,
-          creationStartPoint.x,
-          creationStartPoint.y
-        );
-      }
-
-      // Reset creation state
-      setCreationStartPoint(null);
-      setPreviewShape(null);
-    },
-    [
-      isCreatingShape,
-      creationStartPoint,
-      previewShape,
-      currentTool,
-      handleCreateShape,
-    ]
-  );
-
-  // Handle stage click for creating shapes (fallback for text)
-  const handleStageClick = useCallback(
-    (_e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
-        return;
-
-      // For text, create on click since it doesn't need drag sizing
-      if (currentTool === "text") {
-        const stage = stageRef.current;
-        if (!stage) return;
-
-        setSelectedShapeIds([]);
-
-        const pointer = stage.getPointerPosition();
-        if (!pointer) return;
-
-        const virtualPoint = {
-          x: pointer.x / viewport.scale + viewport.x,
-          y: pointer.y / viewport.scale + viewport.y,
-        };
-
-        // Constrain text position to canvas boundaries
-        const constrainedX = Math.max(
-          0,
-          Math.min(virtualWidth - 100, virtualPoint.x)
-        );
-        const constrainedY = Math.max(
-          0,
-          Math.min(virtualHeight - 50, virtualPoint.y)
-        );
-
-        handleCreateShape(currentTool, constrainedX, constrainedY);
-      }
-    },
-    [
-      isCreatingShape,
-      currentTool,
-      viewport,
-      handleCreateShape,
-      virtualWidth,
-      virtualHeight,
-    ]
-  );
+      handleCreateShape(currentTool, constrainedX, constrainedY);
+    }
+  }, [
+    isCreatingShape,
+    currentTool,
+    viewport,
+    handleCreateShape,
+    virtualWidth,
+    virtualHeight,
+  ]);
 
   // Canvas methods for imperative access
   const setTool = useCallback(

@@ -33,6 +33,7 @@ export default function CanvasPage() {
     shapes,
     error: canvasError,
     saveShape,
+    updateShape,
     deleteShape,
   } = useCanvas(MAIN_CANVAS_ID);
 
@@ -108,6 +109,38 @@ export default function CanvasPage() {
   const handleShapeDelete = (shapeId: string) => {
     if (canvasDocument) {
       deleteShape(shapeId);
+    }
+  };
+
+  // Handle shape updates (movement, resizing, etc.)
+  const handleShapeUpdate = (shapeId: string, updates: Partial<Shape>) => {
+    if (canvasDocument) {
+      // Filter out undefined values for Firestore
+      const updateData: Partial<StoredShape> = {};
+
+      if (updates.x !== undefined) updateData.x = updates.x;
+      if (updates.y !== undefined) updateData.y = updates.y;
+      if (updates.width !== undefined) updateData.width = updates.width;
+      if (updates.height !== undefined) updateData.height = updates.height;
+      if (updates.radius !== undefined) updateData.radius = updates.radius;
+      if (updates.text !== undefined) updateData.text = updates.text;
+      if (updates.fontSize !== undefined)
+        updateData.fontSize = updates.fontSize;
+      if (updates.fill !== undefined) updateData.fill = updates.fill;
+      if (updates.stroke !== undefined) updateData.stroke = updates.stroke;
+      if (updates.strokeWidth !== undefined)
+        updateData.strokeWidth = updates.strokeWidth;
+      if (updates.rotation !== undefined)
+        updateData.rotation = updates.rotation;
+      if (updates.zIndex !== undefined) updateData.zIndex = updates.zIndex;
+
+      // Only update if there are actual changes
+      if (Object.keys(updateData).length > 0) {
+        // Fire and forget - don't await to avoid blocking the UI
+        updateShape(shapeId, updateData).catch((error) => {
+          console.error("Error updating shape:", error);
+        });
+      }
     }
   };
 
@@ -222,6 +255,7 @@ export default function CanvasPage() {
             }
             shapes={canvasShapes}
             onShapeCreate={handleShapeCreate}
+            onShapeUpdate={handleShapeUpdate}
             onShapeDelete={handleShapeDelete}
             className="w-full h-full"
           />

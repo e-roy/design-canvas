@@ -29,48 +29,42 @@ export function RectangleShape({
   virtualHeight,
 }: RectangleProps) {
   const rectRef = useRef<Konva.Rect>(null);
-  const [_isDragging, _setIsDragging] = useState(false);
+  const [, _setIsDragging] = useState(false);
 
-  const handleDragStart = useCallback(
-    (_e: Konva.KonvaEventObject<DragEvent>) => {
-      _setIsDragging(true);
-      onDragStart(shape.id);
+  const handleDragStart = useCallback(() => {
+    _setIsDragging(true);
+    onDragStart(shape.id);
 
-      // Bring to front
-      const rect = rectRef.current;
-      if (rect) {
-        rect.moveToTop();
-      }
-    },
-    [shape.id, onDragStart]
-  );
+    // Bring to front
+    const rect = rectRef.current;
+    if (rect) {
+      rect.moveToTop();
+    }
+  }, [shape.id, onDragStart]);
 
-  const handleDragMove = useCallback(
-    (_e: Konva.KonvaEventObject<DragEvent>) => {
-      const rect = rectRef.current;
-      if (!rect) return;
+  const handleDragMove = useCallback(() => {
+    const rect = rectRef.current;
+    if (!rect) return;
 
-      let newX = rect.x();
-      let newY = rect.y();
+    let newX = rect.x();
+    let newY = rect.y();
 
-      // Constrain to canvas boundaries
-      newX = Math.max(0, Math.min(virtualWidth - (shape.width || 100), newX));
-      newY = Math.max(0, Math.min(virtualHeight - (shape.height || 100), newY));
+    // Constrain to canvas boundaries
+    newX = Math.max(0, Math.min(virtualWidth - (shape.width || 100), newX));
+    newY = Math.max(0, Math.min(virtualHeight - (shape.height || 100), newY));
 
-      // Update position
-      rect.position({ x: newX, y: newY });
+    // Update position
+    rect.position({ x: newX, y: newY });
 
-      onDragMove(shape.id, newX, newY);
-    },
-    [
-      shape.id,
-      shape.width,
-      shape.height,
-      onDragMove,
-      virtualWidth,
-      virtualHeight,
-    ]
-  );
+    onDragMove(shape.id, newX, newY);
+  }, [
+    shape.id,
+    shape.width,
+    shape.height,
+    onDragMove,
+    virtualWidth,
+    virtualHeight,
+  ]);
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
@@ -85,29 +79,26 @@ export function RectangleShape({
     [shape.id, onSelect]
   );
 
-  const handleTransform = useCallback(
-    (_e: Konva.KonvaEventObject<Event>) => {
-      const rect = rectRef.current;
-      if (!rect) return;
+  const handleTransform = useCallback(() => {
+    const rect = rectRef.current;
+    if (!rect) return;
 
-      const newWidth = rect.width() * rect.scaleX();
-      const newHeight = rect.height() * rect.scaleY();
-      const newRotation = rect.rotation();
+    const newWidth = rect.width() * rect.scaleX();
+    const newHeight = rect.height() * rect.scaleY();
+    const newRotation = rect.rotation();
 
-      // Reset scale
-      rect.scaleX(1);
-      rect.scaleY(1);
+    // Reset scale
+    rect.scaleX(1);
+    rect.scaleY(1);
 
-      onShapeChange(shape.id, {
-        width: Math.max(10, newWidth),
-        height: Math.max(10, newHeight),
-        rotation: newRotation,
-        x: rect.x(),
-        y: rect.y(),
-      });
-    },
-    [shape.id, onShapeChange]
-  );
+    onShapeChange(shape.id, {
+      width: Math.max(10, newWidth),
+      height: Math.max(10, newHeight),
+      rotation: newRotation,
+      x: rect.x(),
+      y: rect.y(),
+    });
+  }, [shape.id, onShapeChange]);
 
   const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;

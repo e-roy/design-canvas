@@ -12,12 +12,21 @@ import {
   getDoc,
   getDocs,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { CanvasDocument, StoredShape, UserCursor } from "@/types";
 
 const CANVAS_DOCUMENTS_COLLECTION = "canvas_documents";
 const CANVAS_SHAPES_COLLECTION = "canvas_shapes";
 const USER_CURSORS_COLLECTION = "user_cursors";
+
+// Helper function to check if error is authentication-related
+const isAuthError = (error: unknown): boolean => {
+  return (
+    error instanceof Error &&
+    ((error as { code?: string }).code === "permission-denied" ||
+      error.message.includes("Missing or insufficient permissions"))
+  );
+};
 
 export class CanvasService {
   private listeners: Map<string, () => void> = new Map();
@@ -89,37 +98,50 @@ export class CanvasService {
     documentId: string,
     shape: Omit<StoredShape, "id" | "createdAt" | "updatedAt" | "updatedBy">
   ): Promise<string> {
-    const shapeId = this.generateId();
-    const now = new Date();
+    try {
+      const shapeId = this.generateId();
+      const now = new Date();
 
-    // Filter out undefined values for Firestore
-    const filteredShape = Object.fromEntries(
-      Object.entries(shape).filter(([, value]) => value !== undefined)
-    );
+      // Filter out undefined values for Firestore
+      const filteredShape = Object.fromEntries(
+        Object.entries(shape).filter(([, value]) => value !== undefined)
+      );
 
-    const storedShape: StoredShape = {
-      ...filteredShape,
-      id: shapeId,
-      createdAt: now,
-      updatedAt: now,
-      updatedBy: shape.createdBy,
-    } as StoredShape;
+      const storedShape: StoredShape = {
+        ...filteredShape,
+        id: shapeId,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: shape.createdBy,
+      } as StoredShape;
 
-    await setDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), {
-      ...storedShape,
-      documentId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      await setDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), {
+        ...storedShape,
+        documentId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
-    // Update document version and last edited info
-    await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
-      updatedAt: serverTimestamp(),
-      lastEditedBy: shape.createdBy,
-      version: Date.now(), // Simple versioning
-    });
+      // Update document version and last edited info
+      await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
+        updatedAt: serverTimestamp(),
+        lastEditedBy: shape.createdBy,
+        version: Date.now(), // Simple versioning
+      });
 
-    return shapeId;
+      return shapeId;
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot save shape: User not authenticated or insufficient permissions"
+        );
+        throw new Error("Authentication required to save shapes");
+      } else {
+        console.error("Error saving shape:", error);
+        throw error;
+      }
+    }
   }
 
   async updateShape(
@@ -143,16 +165,28 @@ export class CanvasService {
     >,
     updatedBy: string
   ): Promise<void> {
-    // Filter out undefined values for Firestore
-    const filteredUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([, value]) => value !== undefined)
-    );
+    try {
+      // Filter out undefined values for Firestore
+      const filteredUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([, value]) => value !== undefined)
+      );
 
-    await updateDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), {
-      ...filteredUpdates,
-      updatedAt: serverTimestamp(),
-      updatedBy,
-    });
+      await updateDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), {
+        ...filteredUpdates,
+        updatedAt: serverTimestamp(),
+        updatedBy,
+      });
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot update shape: User not authenticated or insufficient permissions"
+        );
+      } else {
+        console.error("Error updating shape:", error);
+        throw error;
+      }
+    }
   }
 
   async deleteShape(
@@ -160,14 +194,26 @@ export class CanvasService {
     documentId: string,
     updatedBy: string
   ): Promise<void> {
-    await deleteDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId));
+    try {
+      await deleteDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId));
 
-    // Update document metadata
-    await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
-      updatedAt: serverTimestamp(),
-      lastEditedBy: updatedBy,
-      version: Date.now(),
-    });
+      // Update document metadata
+      await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
+        updatedAt: serverTimestamp(),
+        lastEditedBy: updatedBy,
+        version: Date.now(),
+      });
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot delete shape: User not authenticated or insufficient permissions"
+        );
+      } else {
+        console.error("Error deleting shape:", error);
+        throw error;
+      }
+    }
   }
 
   async updateViewport(
@@ -175,12 +221,24 @@ export class CanvasService {
     viewport: { x: number; y: number; scale: number },
     updatedBy: string
   ): Promise<void> {
-    await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
-      viewport: viewport,
-      updatedAt: serverTimestamp(),
-      lastEditedBy: updatedBy,
-      version: Date.now(),
-    });
+    try {
+      await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
+        viewport: viewport,
+        updatedAt: serverTimestamp(),
+        lastEditedBy: updatedBy,
+        version: Date.now(),
+      });
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot update viewport: User not authenticated or insufficient permissions"
+        );
+      } else {
+        console.error("Error updating viewport:", error);
+        throw error;
+      }
+    }
   }
 
   async addCollaborator(
@@ -188,19 +246,31 @@ export class CanvasService {
     userId: string,
     addedBy: string
   ): Promise<void> {
-    const docRef = doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId);
-    const docSnap = await getDoc(docRef);
+    try {
+      const docRef = doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId);
+      const docSnap = await getDoc(docRef);
 
-    if (docSnap.exists()) {
-      const data = docSnap.data() as CanvasDocument;
-      const collaborators = [...new Set([...data.collaborators, userId])];
+      if (docSnap.exists()) {
+        const data = docSnap.data() as CanvasDocument;
+        const collaborators = [...new Set([...data.collaborators, userId])];
 
-      await updateDoc(docRef, {
-        collaborators,
-        updatedAt: serverTimestamp(),
-        lastEditedBy: addedBy,
-        version: Date.now(),
-      });
+        await updateDoc(docRef, {
+          collaborators,
+          updatedAt: serverTimestamp(),
+          lastEditedBy: addedBy,
+          version: Date.now(),
+        });
+      }
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot add collaborator: User not authenticated or insufficient permissions"
+        );
+      } else {
+        console.error("Error adding collaborator:", error);
+        throw error;
+      }
     }
   }
 
@@ -209,19 +279,31 @@ export class CanvasService {
     userId: string,
     removedBy: string
   ): Promise<void> {
-    const docRef = doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId);
-    const docSnap = await getDoc(docRef);
+    try {
+      const docRef = doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId);
+      const docSnap = await getDoc(docRef);
 
-    if (docSnap.exists()) {
-      const data = docSnap.data() as CanvasDocument;
-      const collaborators = data.collaborators.filter((id) => id !== userId);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as CanvasDocument;
+        const collaborators = data.collaborators.filter((id) => id !== userId);
 
-      await updateDoc(docRef, {
-        collaborators,
-        updatedAt: serverTimestamp(),
-        lastEditedBy: removedBy,
-        version: Date.now(),
-      });
+        await updateDoc(docRef, {
+          collaborators,
+          updatedAt: serverTimestamp(),
+          lastEditedBy: removedBy,
+          version: Date.now(),
+        });
+      }
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot remove collaborator: User not authenticated or insufficient permissions"
+        );
+      } else {
+        console.error("Error removing collaborator:", error);
+        throw error;
+      }
     }
   }
 
@@ -234,49 +316,81 @@ export class CanvasService {
   ): () => void {
     let docUnsubscribe: (() => void) | null = null;
     let shapesUnsubscribe: (() => void) | null = null;
+    let currentDocument: CanvasDocument | null = null;
+    let currentShapes: StoredShape[] | null = null;
+
+    // Helper function to call onUpdate with current data
+    const notifyUpdate = () => {
+      if (currentDocument && currentShapes !== null) {
+        onUpdate({ document: currentDocument, shapes: currentShapes });
+      }
+    };
+
+    // Check if user is authenticated before proceeding
+    if (!auth.currentUser) {
+      console.warn("Cannot subscribe to canvas: User not authenticated");
+      return () => {}; // Return empty cleanup function
+    }
 
     // Check if document exists first
     getDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId))
-      .then((docSnap) => {
+      .then(async (docSnap) => {
         if (docSnap.exists()) {
-          const document = {
+          currentDocument = {
             id: documentId,
             ...docSnap.data(),
           } as CanvasDocument;
 
-          // Subscribe to document changes
-          docUnsubscribe = onSnapshot(
-            doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId),
-            (doc) => {
-              if (doc.exists()) {
-                const updatedDocument = {
-                  id: documentId,
-                  ...doc.data(),
-                } as CanvasDocument;
-                onUpdate({ document: updatedDocument, shapes: [] });
-              }
-            }
-          );
-
-          // Subscribe to shapes changes
+          // Load initial shapes
           const shapesQuery = query(
             collection(db, CANVAS_SHAPES_COLLECTION),
             where("documentId", "==", documentId),
             orderBy("zIndex", "asc")
           );
 
+          const shapesSnap = await getDocs(shapesQuery);
+          currentShapes = shapesSnap.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as StoredShape[];
+
+          // Notify initial state
+          notifyUpdate();
+
+          // Subscribe to document changes
+          docUnsubscribe = onSnapshot(
+            doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId),
+            (doc) => {
+              if (doc.exists()) {
+                currentDocument = {
+                  id: documentId,
+                  ...doc.data(),
+                } as CanvasDocument;
+                notifyUpdate();
+              }
+            }
+          );
+
+          // Subscribe to shapes changes
           shapesUnsubscribe = onSnapshot(shapesQuery, (snapshot) => {
-            const shapes = snapshot.docs.map((doc) => ({
+            currentShapes = snapshot.docs.map((doc) => ({
               id: doc.id,
               ...doc.data(),
             })) as StoredShape[];
 
-            onUpdate({ document, shapes });
+            notifyUpdate();
           });
         }
       })
       .catch((error) => {
-        console.error("Error checking document existence:", error);
+        // Handle authentication errors gracefully
+        if (isAuthError(error)) {
+          console.warn(
+            "Cannot access canvas: User not authenticated or insufficient permissions"
+          );
+        } else {
+          console.error("Error checking document existence:", error);
+        }
       });
 
     this.listeners.set(`canvas-${documentId}`, () => {
@@ -295,19 +409,38 @@ export class CanvasService {
     documentId: string,
     onUpdate: (cursors: UserCursor[]) => void
   ): () => void {
+    // Check if user is authenticated before proceeding
+    if (!auth.currentUser) {
+      console.warn("Cannot subscribe to user cursors: User not authenticated");
+      return () => {}; // Return empty cleanup function
+    }
+
     const cursorsQuery = query(
       collection(db, USER_CURSORS_COLLECTION),
       where("documentId", "==", documentId)
     );
 
-    const unsubscribe = onSnapshot(cursorsQuery, (snapshot) => {
-      const cursors = snapshot.docs.map((doc) => ({
-        userId: doc.id,
-        ...doc.data(),
-      })) as UserCursor[];
+    const unsubscribe = onSnapshot(
+      cursorsQuery,
+      (snapshot) => {
+        const cursors = snapshot.docs.map((doc) => ({
+          userId: doc.id,
+          ...doc.data(),
+        })) as UserCursor[];
 
-      onUpdate(cursors);
-    });
+        onUpdate(cursors);
+      },
+      (error) => {
+        // Handle authentication errors gracefully
+        if (isAuthError(error)) {
+          console.warn(
+            "Cannot access user cursors: User not authenticated or insufficient permissions"
+          );
+        } else {
+          console.error("Error subscribing to user cursors:", error);
+        }
+      }
+    );
 
     this.listeners.set(`cursors-${documentId}`, unsubscribe);
     return unsubscribe;
@@ -320,13 +453,25 @@ export class CanvasService {
     x: number,
     y: number
   ): Promise<void> {
-    await setDoc(doc(db, USER_CURSORS_COLLECTION, userId), {
-      documentId,
-      userName,
-      x,
-      y,
-      timestamp: serverTimestamp(),
-    });
+    try {
+      await setDoc(doc(db, USER_CURSORS_COLLECTION, userId), {
+        documentId,
+        userName,
+        x,
+        y,
+        timestamp: serverTimestamp(),
+      });
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot update user cursor: User not authenticated or insufficient permissions"
+        );
+      } else {
+        console.error("Error updating user cursor:", error);
+        throw error;
+      }
+    }
   }
 
   unsubscribeAll(): void {

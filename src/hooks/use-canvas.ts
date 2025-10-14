@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUserStore } from "@/store/user-store";
 import { canvasService } from "@/lib/canvas-service";
 import {
@@ -17,6 +17,7 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
   const [userCursors, setUserCursors] = useState<UserCursor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const subscriptionRef = useRef<{ unsubscribe?: () => void }>({});
 
   // Load canvas data or create if it doesn't exist
   useEffect(() => {
@@ -49,7 +50,15 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
 
   // Subscribe to real-time updates (only after canvas document exists)
   useEffect(() => {
-    if (!documentId || !user || !canvasDocument) return;
+    // Only subscribe if we have all required data and haven't subscribed yet
+    if (
+      !documentId ||
+      !user ||
+      !canvasDocument ||
+      subscriptionRef.current.unsubscribe
+    ) {
+      return;
+    }
 
     const unsubscribeCanvas = canvasService.subscribeToCanvas(
       documentId,
@@ -69,6 +78,29 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
       unsubscribeCursors();
     };
   }, [documentId, user, canvasDocument]);
+
+  // Cleanup subscriptions when documentId or user changes
+  useEffect(() => {
+    const subscription = subscriptionRef.current;
+
+    return () => {
+      if (subscription.unsubscribe) {
+        subscription.unsubscribe();
+        subscription.unsubscribe = undefined;
+      }
+    };
+  }, [documentId, user]);
+
+  // Additional cleanup when user logs out
+  useEffect(() => {
+    if (!user) {
+      // User logged out, clean up subscriptions
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current.unsubscribe = undefined;
+      }
+    }
+  }, [user]);
 
   // Update shape
   const updateShape = useCallback(

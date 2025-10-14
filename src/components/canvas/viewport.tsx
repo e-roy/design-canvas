@@ -6,12 +6,9 @@ import Konva from "konva";
 import { ViewportProps, Point } from "./types";
 
 export function Viewport({
-  canvasWidth: _canvasWidth,
-  canvasHeight: _canvasHeight,
   virtualWidth,
   virtualHeight,
   viewport,
-  onViewportChange: _onViewportChange,
   onPanStart,
   onPanMove,
   onPanEnd,

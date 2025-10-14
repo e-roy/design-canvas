@@ -29,48 +29,38 @@ export function CircleShape({
   virtualHeight,
 }: CircleProps) {
   const circleRef = useRef<Konva.Circle>(null);
-  const [_isDragging, _setIsDragging] = useState(false);
+  const [, _setIsDragging] = useState(false);
 
-  const handleDragStart = useCallback(
-    (_e: Konva.KonvaEventObject<DragEvent>) => {
-      _setIsDragging(true);
-      onDragStart(shape.id);
+  const handleDragStart = useCallback(() => {
+    _setIsDragging(true);
+    onDragStart(shape.id);
 
-      // Bring to front
-      const circle = circleRef.current;
-      if (circle) {
-        circle.moveToTop();
-      }
-    },
-    [shape.id, onDragStart]
-  );
+    // Bring to front
+    const circle = circleRef.current;
+    if (circle) {
+      circle.moveToTop();
+    }
+  }, [shape.id, onDragStart]);
 
-  const handleDragMove = useCallback(
-    (_e: Konva.KonvaEventObject<DragEvent>) => {
-      const circle = circleRef.current;
-      if (!circle) return;
+  const handleDragMove = useCallback(() => {
+    const circle = circleRef.current;
+    if (!circle) return;
 
-      let newX = circle.x();
-      let newY = circle.y();
-      const radius = shape.radius || 50;
+    let newX = circle.x();
+    let newY = circle.y();
 
-      // Constrain to canvas boundaries (accounting for radius)
-      newX = Math.max(
-        0,
-        Math.min(virtualWidth - (shape.radius || 50) * 2, newX)
-      );
-      newY = Math.max(
-        0,
-        Math.min(virtualHeight - (shape.radius || 50) * 2, newY)
-      );
+    // Constrain to canvas boundaries (accounting for radius)
+    newX = Math.max(0, Math.min(virtualWidth - (shape.radius || 50) * 2, newX));
+    newY = Math.max(
+      0,
+      Math.min(virtualHeight - (shape.radius || 50) * 2, newY)
+    );
 
-      // Update position
-      circle.position({ x: newX, y: newY });
+    // Update position
+    circle.position({ x: newX, y: newY });
 
-      onDragMove(shape.id, newX, newY);
-    },
-    [shape.id, shape.radius, onDragMove, virtualWidth, virtualHeight]
-  );
+    onDragMove(shape.id, newX, newY);
+  }, [shape.id, shape.radius, onDragMove, virtualWidth, virtualHeight]);
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
@@ -85,27 +75,24 @@ export function CircleShape({
     [shape.id, onSelect]
   );
 
-  const handleTransform = useCallback(
-    (_e: Konva.KonvaEventObject<Event>) => {
-      const circle = circleRef.current;
-      if (!circle) return;
+  const handleTransform = useCallback(() => {
+    const circle = circleRef.current;
+    if (!circle) return;
 
-      const newRadius = circle.radius() * circle.scaleX();
-      const newRotation = circle.rotation();
+    const newRadius = circle.radius() * circle.scaleX();
+    const newRotation = circle.rotation();
 
-      // Reset scale
-      circle.scaleX(1);
-      circle.scaleY(1);
+    // Reset scale
+    circle.scaleX(1);
+    circle.scaleY(1);
 
-      onShapeChange(shape.id, {
-        radius: Math.max(5, newRadius),
-        rotation: newRotation,
-        x: circle.x(),
-        y: circle.y(),
-      });
-    },
-    [shape.id, onShapeChange]
-  );
+    onShapeChange(shape.id, {
+      radius: Math.max(5, newRadius),
+      rotation: newRotation,
+      x: circle.x(),
+      y: circle.y(),
+    });
+  }, [shape.id, onShapeChange]);
 
   const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;

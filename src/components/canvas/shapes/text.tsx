@@ -38,47 +38,41 @@ export function TextShape({
   virtualHeight,
 }: TextProps) {
   const textRef = useRef<Konva.Text>(null);
-  const [_isDragging, _setIsDragging] = useState(false);
+  const [, _setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(shape.text || "");
 
-  const handleDragStart = useCallback(
-    (_e: Konva.KonvaEventObject<DragEvent>) => {
-      _setIsDragging(true);
-      onDragStart(shape.id);
+  const handleDragStart = useCallback(() => {
+    _setIsDragging(true);
+    onDragStart(shape.id);
 
-      // Bring to front
-      const text = textRef.current;
-      if (text) {
-        text.moveToTop();
-      }
-    },
-    [shape.id, onDragStart]
-  );
+    // Bring to front
+    const text = textRef.current;
+    if (text) {
+      text.moveToTop();
+    }
+  }, [shape.id, onDragStart]);
 
-  const handleDragMove = useCallback(
-    (_e: Konva.KonvaEventObject<DragEvent>) => {
-      const text = textRef.current;
-      if (!text) return;
+  const handleDragMove = useCallback(() => {
+    const text = textRef.current;
+    if (!text) return;
 
-      let newX = text.x();
-      let newY = text.y();
+    let newX = text.x();
+    let newY = text.y();
 
-      // Get text dimensions for boundary calculation
-      const textWidth = text.width();
-      const textHeight = text.height();
+    // Get text dimensions for boundary calculation
+    const textWidth = text.width();
+    const textHeight = text.height();
 
-      // Constrain to canvas boundaries
-      newX = Math.max(0, Math.min(virtualWidth - (textWidth || 100), newX));
-      newY = Math.max(0, Math.min(virtualHeight - (textHeight || 50), newY));
+    // Constrain to canvas boundaries
+    newX = Math.max(0, Math.min(virtualWidth - (textWidth || 100), newX));
+    newY = Math.max(0, Math.min(virtualHeight - (textHeight || 50), newY));
 
-      // Update position
-      text.position({ x: newX, y: newY });
+    // Update position
+    text.position({ x: newX, y: newY });
 
-      onDragMove(shape.id, newX, newY);
-    },
-    [shape.id, onDragMove, virtualWidth, virtualHeight]
-  );
+    onDragMove(shape.id, newX, newY);
+  }, [shape.id, onDragMove, virtualWidth, virtualHeight]);
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
@@ -93,33 +87,27 @@ export function TextShape({
     [shape.id, onSelect]
   );
 
-  const handleTransform = useCallback(
-    (_e: Konva.KonvaEventObject<Event>) => {
-      const text = textRef.current;
-      if (!text) return;
+  const handleTransform = useCallback(() => {
+    const text = textRef.current;
+    if (!text) return;
 
-      const newRotation = text.rotation();
+    const newRotation = text.rotation();
 
-      // Reset scale
-      text.scaleX(1);
-      text.scaleY(1);
+    // Reset scale
+    text.scaleX(1);
+    text.scaleY(1);
 
-      onShapeChange(shape.id, {
-        rotation: newRotation,
-        x: text.x(),
-        y: text.y(),
-      });
-    },
-    [shape.id, onShapeChange]
-  );
+    onShapeChange(shape.id, {
+      rotation: newRotation,
+      x: text.x(),
+      y: text.y(),
+    });
+  }, [shape.id, onShapeChange]);
 
-  const handleDblClick = useCallback(
-    (_e: Konva.KonvaEventObject<MouseEvent>) => {
-      setIsEditing(true);
-      setEditText(shape.text || "");
-    },
-    [shape.text]
-  );
+  const handleDblClick = useCallback(() => {
+    setIsEditing(true);
+    setEditText(shape.text || "");
+  }, [shape.text]);
 
   const handleSaveEdit = useCallback(() => {
     onShapeChange(shape.id, { text: editText });

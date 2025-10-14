@@ -18,9 +18,6 @@ export default function LandingPage() {
             <Button asChild size="lg">
               <Link href="/login">Get Started</Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/canvas">Try Demo</Link>
-            </Button>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
