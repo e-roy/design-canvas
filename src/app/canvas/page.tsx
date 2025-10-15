@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
@@ -9,8 +8,6 @@ import { CompactPresence } from "@/components/compact-presence";
 import { useCanvas } from "@/hooks/use-canvas";
 import { useUserStore } from "@/store/user-store";
 import { useCursorStore } from "@/store/cursor-store";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import { Canvas, CanvasRef, Shape } from "@/components/canvas";
 import { StoredShape, CursorPosition } from "@/types";
 import { cursorManager } from "@/lib/cursor-manager";
@@ -20,12 +17,13 @@ import { Square, Circle, MousePointer, Hand } from "lucide-react";
 const MAIN_CANVAS_ID = "main-collaborative-canvas";
 
 export default function CanvasPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentTool, setCurrentTool] = useState<
     "select" | "pan" | "rectangle" | "circle" | "text"
   >("select");
-  const router = useRouter();
+  const [canvasDimensions, setCanvasDimensions] = useState({
+    width: 1200,
+    height: 800,
+  });
   const canvasRef = useRef<CanvasRef>(null);
   const { user } = useUserStore();
   const { setCursors } = useCursorStore();
@@ -40,23 +38,40 @@ export default function CanvasPage() {
     deleteShape,
   } = useCanvas(MAIN_CANVAS_ID);
 
+  // Handle canvas dimensions after hydration
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-        router.push("/login");
-      }
-      setIsLoading(false);
-    });
+    const updateDimensions = () => {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        setCanvasDimensions({
+          width: window.innerWidth,
+          height: Math.max(400, window.innerHeight - 80), // Account for header height, minimum 400px
+        });
+      });
+    };
 
-    return () => unsubscribe();
-  }, [router]);
+    // Small delay to ensure proper hydration
+    const timeoutId = setTimeout(updateDimensions, 0);
+
+    // Update dimensions on window resize with debouncing
+    let resizeTimeout: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updateDimensions, 100);
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(resizeTimeout);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   // Set up cursor tracking
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user) {
       // Set the user for cursor tracking
       cursorManager.setUser({
         uid: user.uid,
@@ -77,11 +92,11 @@ export default function CanvasPage() {
         cursorManager.clearUserCursor();
       };
     }
-  }, [user, isAuthenticated]);
+  }, [user]);
 
   // Handle mouse movement for cursor tracking
   const handleMouseMove = (position: CursorPosition) => {
-    if (user && isAuthenticated) {
+    if (user) {
       cursorManager.updateCursorPosition(position);
     }
   };
@@ -242,23 +257,6 @@ export default function CanvasPage() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="text-center p-6">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -284,10 +282,8 @@ export default function CanvasPage() {
         <div className="absolute inset-0 bg-white dark:bg-gray-800">
           <Canvas
             ref={canvasRef}
-            width={typeof window !== "undefined" ? window.innerWidth : 1200}
-            height={
-              typeof window !== "undefined" ? window.innerHeight - 80 : 800
-            }
+            width={canvasDimensions.width}
+            height={canvasDimensions.height}
             shapes={canvasShapes}
             onShapeCreate={handleShapeCreate}
             onShapeUpdate={handleShapeUpdate}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,23 +15,36 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useUserStore } from "@/store";
+import { useCursorStore } from "@/store/cursor-store";
 import { cursorManager } from "@/lib/cursor-manager";
+import { canvasService } from "@/lib/canvas-service";
+
+import { logout } from "@/lib/auth";
 
 export function UserAvatar() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const { user, clearUser } = useUserStore();
+  const { clearCursors } = useCursorStore();
 
   const handleLogout = async () => {
     try {
-      // Clear cursor data before signing out (for security/privacy)
+      // Clear cursor data and unsubscribe from all listeners before signing out
       cursorManager.clearUserCursor();
+      cursorManager.unsubscribeAll();
+      canvasService.unsubscribeAll();
 
       // Sign out from Firebase
       await signOut(auth);
+      await logout();
+      router.refresh();
 
       // Clear user from store
       clearUser();
+      clearCursors();
+
+      // Small delay to ensure all Firebase connections are properly closed
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Redirect to login
       router.push("/login");

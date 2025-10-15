@@ -22,3 +22,7 @@ export const db = getFirestore(app);
 export const realtimeDb = getDatabase(app);
 
 export default app;
+
+export const getFirebaseAuth = () => {
+  return auth;
+};

@@ -73,9 +73,17 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
       setUserCursors
     );
 
-    return () => {
+    // Store the unsubscribe function
+    subscriptionRef.current.unsubscribe = () => {
       unsubscribeCanvas();
       unsubscribeCursors();
+    };
+
+    return () => {
+      if (subscriptionRef.current.unsubscribe) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current.unsubscribe = undefined;
+      }
     };
   }, [documentId, user, canvasDocument]);
 

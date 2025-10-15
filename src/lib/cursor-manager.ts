@@ -236,7 +236,10 @@ export class CursorManager {
         }
       },
       (error) => {
-        console.error("Error listening to cursor updates:", error);
+        // Only log non-permission errors to avoid console spam during logout
+        if ((error as any).code !== "permission_denied") {
+          console.error("Error listening to cursor updates:", error);
+        }
         callback({});
       }
     );
@@ -250,7 +253,10 @@ export class CursorManager {
 
     const cursorRef = ref(realtimeDb, this.getCursorPath(this.currentUser.uid));
     set(cursorRef, null).catch((error) => {
-      console.error("Error clearing cursor:", error);
+      // Only log non-permission errors to avoid console spam during logout
+      if ((error as any).code !== "permission_denied") {
+        console.error("Error clearing cursor:", error);
+      }
     });
 
     if (this.updateInterval) {
