@@ -13,13 +13,13 @@ import {
   generateUserColor,
   CursorConfig,
 } from "@/types";
-import { BaseUser } from "@/types";
+import { User } from "@/store/user-store";
 
 const CURSOR_COLLECTION = "canvas_cursors";
 
 export class CursorManager {
   private canvasId: string;
-  private currentUser: BaseUser | null = null;
+  private currentUser: User | null = null;
   private userColor: string = "";
   private updateInterval: NodeJS.Timeout | null = null;
   private lastPosition: CursorPosition | null = null;
@@ -49,7 +49,7 @@ export class CursorManager {
     return userId ? `${basePath}/${userId}` : basePath;
   }
 
-  async setUser(user: BaseUser): Promise<void> {
+  async setUser(user: User): Promise<void> {
     this.currentUser = user;
     this.userColor = generateUserColor(user.uid);
 
@@ -97,6 +97,8 @@ export class CursorManager {
       userId: this.currentUser.uid,
       displayName: this.currentUser.displayName || "Anonymous",
       color: this.userColor,
+      photoURL: this.currentUser.photoURL,
+      currentProject: this.canvasId,
       x: this.lastPosition.x,
       y: this.lastPosition.y,
       timestamp: this.lastPosition.timestamp,
@@ -134,13 +136,15 @@ export class CursorManager {
         Object.entries(data).forEach(([userId, cursorData]) => {
           if (cursorData && typeof cursorData === "object") {
             // Handle both old format (with position object) and new format (flat properties)
-            let x, y, timestamp, displayName, color;
+            let x, y, timestamp, displayName, color, photoURL, currentProject;
 
             if ("position" in cursorData && cursorData.position) {
               // Old format with position object (for backward compatibility)
               const cursor = cursorData as {
                 displayName?: string;
                 color?: string;
+                photoURL?: string | null;
+                currentProject?: string | null;
                 position: {
                   x?: number;
                   y?: number;
@@ -151,6 +155,8 @@ export class CursorManager {
               y = cursor.position?.y || 0;
               displayName = cursor.displayName || "Anonymous";
               color = cursor.color || "#000000";
+              photoURL = cursor.photoURL || null;
+              currentProject = cursor.currentProject || null;
 
               // Handle timestamp
               const cursorTimestamp = cursor.position?.timestamp || 0;
@@ -165,6 +171,8 @@ export class CursorManager {
               const cursor = cursorData as {
                 displayName?: string;
                 color?: string;
+                photoURL?: string | null;
+                currentProject?: string | null;
                 x?: number;
                 y?: number;
                 timestamp?: number | { toMillis?: () => number };
@@ -173,6 +181,8 @@ export class CursorManager {
               y = cursor.y || 0;
               displayName = cursor.displayName || "Anonymous";
               color = cursor.color || "#000000";
+              photoURL = cursor.photoURL || null;
+              currentProject = cursor.currentProject || null;
 
               // Handle timestamp
               const cursorTimestamp = cursor.timestamp || 0;
@@ -195,6 +205,8 @@ export class CursorManager {
                 userId,
                 displayName,
                 color,
+                photoURL,
+                currentProject,
                 x,
                 y,
                 timestamp: timestamp || 0,
@@ -264,7 +276,7 @@ export class CursorManager {
     return this.userColor;
   }
 
-  getCurrentUser(): BaseUser | null {
+  getCurrentUser(): User | null {
     return this.currentUser;
   }
 }

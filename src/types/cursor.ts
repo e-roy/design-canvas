@@ -10,6 +10,8 @@ export interface UserCursor {
   userId: string;
   displayName: string;
   color: string;
+  photoURL: string | null;
+  currentProject?: string | null;
   x: number;
   y: number;
   timestamp: number;

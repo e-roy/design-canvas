@@ -8,10 +8,11 @@ import { UserAvatar } from "@/components/user-avatar";
 import { CompactPresence } from "@/components/compact-presence";
 import { useCanvas } from "@/hooks/use-canvas";
 import { useUserStore } from "@/store/user-store";
+import { useCursorStore } from "@/store/cursor-store";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Canvas, CanvasRef, Shape } from "@/components/canvas";
-import { StoredShape, CanvasCursorState, CursorPosition } from "@/types";
+import { StoredShape, CursorPosition } from "@/types";
 import { cursorManager } from "@/lib/cursor-manager";
 import { Square, Circle, MousePointer, Hand } from "lucide-react";
 
@@ -24,10 +25,10 @@ export default function CanvasPage() {
   const [currentTool, setCurrentTool] = useState<
     "select" | "pan" | "rectangle" | "circle" | "text"
   >("select");
-  const [cursors, setCursors] = useState<CanvasCursorState>({});
   const router = useRouter();
   const canvasRef = useRef<CanvasRef>(null);
   const { user } = useUserStore();
+  const { setCursors } = useCursorStore();
 
   // Use the canvas collaboration hook
   const {
@@ -269,7 +270,7 @@ export default function CanvasPage() {
 
           {/* Center - Online Users */}
           <div className="flex-1 flex justify-center">
-            <CompactPresence projectId="canvas" showCount={true} />
+            <CompactPresence projectId={MAIN_CANVAS_ID} showCount={true} />
           </div>
 
           <div className="flex items-center gap-2">
@@ -293,7 +294,6 @@ export default function CanvasPage() {
             onShapeDelete={handleShapeDelete}
             onToolChange={setCurrentTool}
             onMouseMove={handleMouseMove}
-            cursors={cursors}
             currentUserId={user?.uid}
             className="w-full h-full"
           />

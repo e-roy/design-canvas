@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useUserStore } from "@/store";
-import { presenceManager } from "@/lib/presence";
+import { cursorManager } from "@/lib/cursor-manager";
 
 export function UserAvatar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,8 +24,8 @@ export function UserAvatar() {
 
   const handleLogout = async () => {
     try {
-      // Clear presence data before signing out (for security/privacy)
-      await presenceManager.clearUserPresence();
+      // Clear cursor data before signing out (for security/privacy)
+      cursorManager.clearUserCursor();
 
       // Sign out from Firebase
       await signOut(auth);

@@ -46,7 +46,6 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     onShapeUpdate,
     onShapeDelete,
     onToolChange,
-    cursors = {},
     onMouseMove,
     currentUserId,
   },
@@ -177,6 +176,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       generateId,
       previewShape,
       onShapeCreate,
+      onToolChange,
       virtualWidth,
       virtualHeight,
     ]
@@ -689,11 +689,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       </Stage>
 
       {/* Cursors overlay */}
-      <CursorsOverlay
-        cursors={cursors}
-        currentUserId={currentUserId}
-        viewport={viewport}
-      />
+      <CursorsOverlay currentUserId={currentUserId} viewport={viewport} />
 
       {/* Canvas boundary indicators */}
       <div className="absolute inset-0 pointer-events-none">

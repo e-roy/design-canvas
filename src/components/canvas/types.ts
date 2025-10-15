@@ -64,8 +64,9 @@ export interface CanvasProps {
   onShapeCreate?: (shape: Shape) => void;
   onShapeUpdate?: (shapeId: string, updates: Partial<Shape>) => void;
   onShapeDelete?: (shapeId: string) => void;
-  onToolChange?: (tool: "select" | "pan" | "rectangle" | "circle" | "text") => void;
-  cursors?: Record<string, import("@/types").UserCursor>;
+  onToolChange?: (
+    tool: "select" | "pan" | "rectangle" | "circle" | "text"
+  ) => void;
   onMouseMove?: (position: import("@/types").CursorPosition) => void;
   currentUserId?: string;
 }

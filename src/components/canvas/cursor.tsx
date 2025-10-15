@@ -3,6 +3,7 @@
 import React from "react";
 import { UserCursor } from "@/types";
 import { MousePointer2 } from "lucide-react";
+import { useCursorStore } from "@/store/cursor-store";
 
 interface CursorProps {
   cursor: UserCursor;
@@ -59,16 +60,16 @@ export function Cursor({ cursor, viewport }: CursorProps) {
 }
 
 interface CursorsOverlayProps {
-  cursors: Record<string, UserCursor>;
   currentUserId?: string;
   viewport?: { x: number; y: number; scale: number };
 }
 
 export function CursorsOverlay({
-  cursors,
   currentUserId,
   viewport,
 }: CursorsOverlayProps) {
+  const { cursors } = useCursorStore();
+
   // Don't show current user's own cursor
   const otherUsersCursors = Object.values(cursors).filter(
     (cursor) => cursor.userId !== currentUserId

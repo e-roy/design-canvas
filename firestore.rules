@@ -12,18 +12,6 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // Presence collection - users can manage their own presence
-    match /presence/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && getUserId() == userId;
-    }
-
-    // Project presence collection - users can read project presence and manage their own entries
-    match /project_presence/{projectId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
-    }
-
     // Canvas documents - users can read/write canvas documents
     match /canvas_documents/{documentId} {
       // Allow read for authenticated users (for loading existing canvases)
