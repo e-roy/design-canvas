@@ -12,7 +12,7 @@ import {
   getDoc,
   getDocs,
 } from "firebase/firestore";
-import { db, auth } from "./firebase";
+import { db, auth } from "@/lib/firebase";
 import { CanvasDocument, StoredShape, CanvasUserCursor } from "@/types";
 
 const CANVAS_DOCUMENTS_COLLECTION = "canvas_documents";

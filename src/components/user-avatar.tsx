@@ -19,7 +19,7 @@ import { useCursorStore } from "@/store/cursor-store";
 import { cursorManager } from "@/lib/cursor-manager";
 import { canvasService } from "@/lib/canvas-service";
 
-import { logout } from "@/lib/auth";
+import { logout } from "@/lib/firebase/auth";
 
 export function UserAvatar() {
   const [isOpen, setIsOpen] = useState(false);

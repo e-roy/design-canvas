@@ -5,7 +5,7 @@ import {
   onDisconnect,
   serverTimestamp,
 } from "firebase/database";
-import { realtimeDb } from "./firebase";
+import { realtimeDb } from "@/lib/firebase";
 import {
   UserCursor,
   CursorPosition,
@@ -29,7 +29,7 @@ export class CursorManager {
   constructor(canvasId: string, config?: Partial<CursorConfig>) {
     this.canvasId = canvasId;
     this.config = {
-      updateInterval: 16, // Update every 16ms for smooth 60fps responsiveness
+      updateInterval: 4, // Update every 4ms for ultra-smooth responsiveness
       cleanupThreshold: 10000, // Remove cursors after 10 seconds of inactivity
       maxCursors: 50,
       ...config,
@@ -80,9 +80,24 @@ export class CursorManager {
       return;
     }
 
-    // Update if enough time has passed since last update (for smooth responsiveness)
+    // Filter out off-screen positions (indicates mouse left canvas)
+    if (position.x < -500 || position.y < -500) {
+      // Clear cursor by setting it to null
+      const cursorRef = ref(
+        realtimeDb,
+        this.getCursorPath(this.currentUser.uid)
+      );
+      set(cursorRef, null).catch((error) => {
+        console.error("Error clearing cursor:", error);
+      });
+      return;
+    }
+
+    // Only throttle if the position hasn't changed significantly
     if (
       this.lastPosition &&
+      Math.abs(this.lastPosition.x - position.x) < 0.5 &&
+      Math.abs(this.lastPosition.y - position.y) < 0.5 &&
       Date.now() - this.lastPosition.timestamp < this.config.updateInterval
     ) {
       return;

@@ -124,15 +124,6 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     });
   }, [externalShapes, localDragState]);
 
-  // Cleanup effect to handle edge cases
-  useEffect(() => {
-    return () => {
-      // Clear any pending drag ends on unmount
-      pendingDragEnds.current.clear();
-      activeDraggingShapes.current.clear();
-    };
-  }, []);
-
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -217,19 +208,35 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       // Clear existing timer for this shape
       if (updateTimers.current[id]) {
         clearTimeout(updateTimers.current[id]);
+        delete updateTimers.current[id];
       }
 
-      // Use different debounce rates based on dragging activity
+      // Use very minimal debouncing for ultra-smooth movement
       const isActivelyDragging = activeDraggingShapes.current.has(id);
-      const debounceDelay = isActivelyDragging ? 4 : 8; // 4ms for active dragging (~250fps), 8ms for others (~120fps)
 
-      // Debounce the Firebase update for other users
-      updateTimers.current[id] = setTimeout(() => {
+      // For active dragging, send immediate updates for very small movements
+      if (isActivelyDragging) {
+        // Send immediate update for active dragging
         if (onShapeUpdate) {
           onShapeUpdate(id, { x, y });
         }
-        delete updateTimers.current[id];
-      }, debounceDelay);
+
+        // Still set a backup timer in case the immediate update fails
+        updateTimers.current[id] = setTimeout(() => {
+          if (onShapeUpdate) {
+            onShapeUpdate(id, { x, y });
+          }
+          delete updateTimers.current[id];
+        }, 8); // 8ms backup timer
+      } else {
+        // For non-active dragging, use minimal debouncing
+        updateTimers.current[id] = setTimeout(() => {
+          if (onShapeUpdate) {
+            onShapeUpdate(id, { x, y });
+          }
+          delete updateTimers.current[id];
+        }, 4); // 4ms for non-active dragging
+      }
     },
     [onShapeUpdate]
   );
@@ -377,6 +384,75 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     setPreviewShape(preview);
   }, [isCreatingShape, currentTool, viewport, virtualWidth, virtualHeight]);
+
+  // Global mouse move handler for cursor tracking (works during all interactions)
+  const handleGlobalMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!onMouseMove || !containerRef.current) return;
+
+      // Get the container's bounding rectangle
+      const containerRect = containerRef.current.getBoundingClientRect();
+
+      // Check if mouse is within the canvas container
+      const mouseX = e.clientX - containerRect.left;
+      const mouseY = e.clientY - containerRect.top;
+
+      if (
+        mouseX < 0 ||
+        mouseY < 0 ||
+        mouseX > containerRect.width ||
+        mouseY > containerRect.height
+      ) {
+        return; // Mouse is outside canvas area
+      }
+
+      // Convert screen coordinates to virtual canvas coordinates
+      const virtualPosition: CursorPosition = {
+        x: mouseX / viewport.scale + viewport.x,
+        y: mouseY / viewport.scale + viewport.y,
+        timestamp: Date.now(),
+      };
+
+      onMouseMove(virtualPosition);
+    },
+    [onMouseMove, viewport]
+  );
+
+  // Global mouse leave handler to clear cursor when leaving canvas
+  const handleGlobalMouseLeave = useCallback(() => {
+    if (!onMouseMove || !containerRef.current) return;
+
+    // Send a position outside the canvas to indicate mouse left
+    const virtualPosition: CursorPosition = {
+      x: -1000, // Off-screen position
+      y: -1000,
+      timestamp: Date.now(),
+    };
+
+    onMouseMove(virtualPosition);
+  }, [onMouseMove]);
+
+  // Set up global mouse event listeners for cursor tracking
+  useEffect(() => {
+    if (onMouseMove) {
+      window.addEventListener("mousemove", handleGlobalMouseMove);
+      window.addEventListener("mouseleave", handleGlobalMouseLeave);
+
+      return () => {
+        window.removeEventListener("mousemove", handleGlobalMouseMove);
+        window.removeEventListener("mouseleave", handleGlobalMouseLeave);
+      };
+    }
+  }, [handleGlobalMouseMove, handleGlobalMouseLeave, onMouseMove]);
+
+  // Cleanup effect to handle edge cases
+  useEffect(() => {
+    return () => {
+      // Clear any pending drag ends on unmount
+      pendingDragEnds.current.clear();
+      activeDraggingShapes.current.clear();
+    };
+  }, []);
 
   // Handle stage mouse move for updating preview shape and cursor tracking
   const handleStageMouseMove = useCallback(() => {

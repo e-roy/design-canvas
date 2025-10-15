@@ -19,14 +19,14 @@ import { XCircle, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { auth } from "@/lib/firebase";
 import { useUserStore } from "@/store";
-import { getAuthErrorMessage } from "@/lib/auth-errors";
+import { getAuthErrorMessage } from "@/lib/firebase/auth-errors";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   updateProfile,
 } from "firebase/auth";
-import { loginWithCredential, loginWithProvider } from "@/lib/auth";
+import { loginWithCredential, loginWithProvider } from "@/lib/firebase/auth";
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
