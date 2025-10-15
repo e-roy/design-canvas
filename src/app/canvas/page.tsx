@@ -1,15 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
 import { CompactPresence } from "@/components/compact-presence";
-import { useCanvas } from "@/hooks/use-canvas";
 import { useUserStore } from "@/store/user-store";
 import { useCursorStore } from "@/store/cursor-store";
-import { Canvas, CanvasRef, Shape } from "@/components/canvas";
-import { StoredShape, CursorPosition } from "@/types";
+import {
+  useCanvasDocument,
+  useCanvasShapes,
+  useCanvasError,
+  useCanvasTool,
+  useCanvasDimensions,
+  useCanvasActions,
+} from "@/store/canvas-store";
+import { Canvas, CanvasRef } from "@/components/canvas";
+import { StoredShape, CursorPosition, Shape } from "@/types";
 import { cursorManager } from "@/lib/cursor-manager";
 import { Square, Circle, MousePointer } from "lucide-react";
 
@@ -17,26 +24,29 @@ import { Square, Circle, MousePointer } from "lucide-react";
 const MAIN_CANVAS_ID = "main-collaborative-canvas";
 
 export default function CanvasPage() {
-  const [currentTool, setCurrentTool] = useState<
-    "select" | "pan" | "rectangle" | "circle" | "text"
-  >("select");
-  const [canvasDimensions, setCanvasDimensions] = useState({
-    width: 1200,
-    height: 800,
-  });
   const canvasRef = useRef<CanvasRef>(null);
   const { user } = useUserStore();
   const { setCursors } = useCursorStore();
 
-  // Use the canvas collaboration hook
+  // Use the canvas store
+  const canvasDocument = useCanvasDocument();
+  const shapes = useCanvasShapes();
+  const canvasError = useCanvasError();
+  const currentTool = useCanvasTool();
+  const canvasDimensions = useCanvasDimensions();
   const {
-    canvasDocument,
-    shapes,
-    error: canvasError,
+    setDocumentId,
     saveShape,
     updateShape,
     deleteShape,
-  } = useCanvas(MAIN_CANVAS_ID);
+    setCurrentTool,
+    setCanvasDimensions,
+  } = useCanvasActions();
+
+  // Initialize canvas document ID
+  useEffect(() => {
+    setDocumentId(MAIN_CANVAS_ID);
+  }, [setDocumentId]);
 
   // Handle canvas dimensions after hydration
   useEffect(() => {
@@ -67,7 +77,7 @@ export default function CanvasPage() {
       clearTimeout(resizeTimeout);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [setCanvasDimensions]);
 
   // Set up cursor tracking
   useEffect(() => {

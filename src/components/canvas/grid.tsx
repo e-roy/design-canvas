@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Group, Line } from "react-konva";
-import { GridProps } from "./types";
+import { GridProps } from "@/types";
 
 export function CanvasGrid({
   size,

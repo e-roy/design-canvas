@@ -2,8 +2,9 @@
 
 import React, { useRef, useCallback, useEffect } from "react";
 import { Group } from "react-konva";
-import Konva from "konva";
-import { ViewportProps, Point } from "./types";
+import type { KonvaEventObject } from "konva/lib/Node";
+import type { Group as KonvaGroup } from "konva/lib/Group";
+import { ViewportProps, Point } from "@/types";
 
 export function Viewport({
   virtualWidth,
@@ -15,13 +16,13 @@ export function Viewport({
   children,
   currentTool,
 }: ViewportProps & { currentTool: string }) {
-  const groupRef = useRef<Konva.Group>(null);
+  const groupRef = useRef<KonvaGroup>(null);
   const isDraggingRef = useRef(false);
   const lastPointerPositionRef = useRef<Point>({ x: 0, y: 0 });
 
   // Handle mouse down for panning
   const handleMouseDown = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (e: KonvaEventObject<MouseEvent>) => {
       // Only handle panning when in pan mode
       if (currentTool !== "pan") {
         e.cancelBubble = true;
@@ -52,7 +53,7 @@ export function Viewport({
 
   // Handle mouse move for panning
   const handleMouseMove = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (e: KonvaEventObject<MouseEvent>) => {
       if (!isDraggingRef.current || currentTool !== "pan") {
         e.cancelBubble = true;
         return;
@@ -81,7 +82,7 @@ export function Viewport({
 
   // Handle mouse up for panning
   const handleMouseUp = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (e: KonvaEventObject<MouseEvent>) => {
       if (!isDraggingRef.current || currentTool !== "pan") {
         e.cancelBubble = true;
         return;

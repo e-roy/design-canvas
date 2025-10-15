@@ -11,12 +11,19 @@ import React, {
 } from "react";
 import { Stage, Layer, Rect } from "react-konva";
 import Konva from "konva";
-import { CanvasProps, CanvasViewport, Point, Shape } from "./types";
+import type { KonvaEventObject } from "konva/lib/Node";
+import { CanvasProps, CanvasViewport, Point, Shape } from "@/types";
 import { Viewport } from "./viewport";
 import { CanvasGrid } from "./grid";
 import { RectangleShape, CircleShape, TextShape } from "./shapes";
 import { CursorsOverlay } from "./cursor";
 import { CursorPosition } from "@/types";
+import {
+  useCanvasViewport,
+  useCanvasTool,
+  useSelectedShapeIds,
+  useCanvasActions,
+} from "@/store/canvas-store";
 
 // Canvas constants
 const VIRTUAL_WIDTH = 5000;
@@ -51,25 +58,80 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   },
   ref
 ) {
-  const [viewport, setViewport] = useState<CanvasViewport>({
-    x: virtualWidth / 2 - width / 2,
-    y: virtualHeight / 2 - height / 2,
-    scale: 1,
-  });
+  // Use store selectors for global state
+  const viewport = useCanvasViewport();
+  const currentTool = useCanvasTool();
+  const selectedShapeIds = useSelectedShapeIds();
+  const { setCurrentTool, setViewport, setSelectedShapeIds } =
+    useCanvasActions();
 
-  const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([]);
+  // Local drag state for smooth dragging (not persisted to store)
+  const [localDragState, setLocalDragState] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
+  const [previewShape, setPreviewShape] = useState<Shape | null>(null);
+
+  // Track pending drag end updates to prevent flicker
+  const pendingDragEnds = useRef<Set<string>>(new Set());
+
+  // Local UI state (not global)
   const [isPanMode, setIsPanMode] = useState(false);
   const [isCreatingShape, setIsCreatingShape] = useState(false);
-  const [currentTool, setCurrentTool] = useState<
-    "select" | "pan" | "rectangle" | "circle" | "text"
-  >("select");
   const [creationStartPoint, setCreationStartPoint] = useState<Point | null>(
     null
   );
-  const [previewShape, setPreviewShape] = useState<Shape | null>(null);
 
   // Use external shapes if provided, otherwise use empty array
-  const shapes = useMemo(() => externalShapes || [], [externalShapes]);
+  // Apply local drag positions for smooth dragging
+  const shapes = useMemo(() => {
+    if (!externalShapes || externalShapes.length === 0) {
+      return [];
+    }
+
+    return externalShapes.map((shape) => {
+      const localDrag = localDragState[shape.id];
+      if (localDrag) {
+        return { ...shape, x: localDrag.x, y: localDrag.y };
+      }
+      return shape;
+    });
+  }, [externalShapes, localDragState]);
+
+  // Monitor Firebase updates to clear local drag state when confirmed
+  useEffect(() => {
+    if (!externalShapes) return;
+
+    // Check if any pending drag ends have been confirmed by Firebase
+    pendingDragEnds.current.forEach((shapeId) => {
+      const externalShape = externalShapes.find((s) => s.id === shapeId);
+      const localDrag = localDragState[shapeId];
+
+      if (externalShape && localDrag) {
+        // Check if Firebase position matches our local position (within tolerance)
+        const tolerance = 1; // 1 pixel tolerance
+        const xMatch = Math.abs(externalShape.x - localDrag.x) < tolerance;
+        const yMatch = Math.abs(externalShape.y - localDrag.y) < tolerance;
+
+        if (xMatch && yMatch) {
+          // Firebase update confirmed, clear local state
+          setLocalDragState((prev) => {
+            const { [shapeId]: removed, ...remaining } = prev;
+            return remaining;
+          });
+          pendingDragEnds.current.delete(shapeId);
+        }
+      }
+    });
+  }, [externalShapes, localDragState]);
+
+  // Cleanup effect to handle edge cases
+  useEffect(() => {
+    return () => {
+      // Clear any pending drag ends on unmount
+      pendingDragEnds.current.clear();
+      activeDraggingShapes.current.clear();
+    };
+  }, []);
 
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +141,42 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     return `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }, []);
 
+  // Helper function to constrain viewport to canvas boundaries
+  const constrainViewport = useCallback(
+    (newViewport: CanvasViewport) => {
+      // Calculate the visible area in virtual coordinates
+      const visibleWidth = width / newViewport.scale;
+      const visibleHeight = height / newViewport.scale;
+
+      // When zoomed out a lot, ensure the canvas stays visible
+      // The viewport should keep the canvas centered or at least partially visible
+      let minX, minY, maxX, maxY;
+
+      if (visibleWidth >= virtualWidth && visibleHeight >= virtualHeight) {
+        // When we can see the full canvas, center it
+        const centerX = virtualWidth / 2 - visibleWidth / 2;
+        const centerY = virtualHeight / 2 - visibleHeight / 2;
+        minX = centerX;
+        minY = centerY;
+        maxX = centerX;
+        maxY = centerY;
+      } else {
+        // When zoomed in, allow movement within canvas boundaries
+        minX = -(virtualWidth - visibleWidth);
+        minY = -(virtualHeight - visibleHeight);
+        maxX = virtualWidth - visibleWidth;
+        maxY = virtualHeight - visibleHeight;
+      }
+
+      return {
+        x: Math.max(minX, Math.min(maxX, newViewport.x)),
+        y: Math.max(minY, Math.min(maxY, newViewport.y)),
+        scale: newViewport.scale,
+      };
+    },
+    [width, height, virtualWidth, virtualHeight]
+  );
+
   // Shape management functions
   const handleShapeSelect = useCallback(
     (id: string) => {
@@ -86,8 +184,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         setSelectedShapeIds([id]);
       }
     },
-    [currentTool]
+    [currentTool, setSelectedShapeIds]
   );
+
+  // Debounce timer for shape updates
+  const updateTimers = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Track active dragging shapes for more frequent updates
+  const activeDraggingShapes = useRef<Set<string>>(new Set());
 
   const handleShapeDragStart = useCallback(
     (id: string) => {
@@ -95,22 +199,69 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       if (onShapeUpdate) {
         onShapeUpdate(id, { zIndex: Date.now() });
       }
+
+      // Mark as actively dragging for more frequent updates
+      activeDraggingShapes.current.add(id);
     },
     [onShapeUpdate]
   );
 
   const handleShapeDragMove = useCallback(
     (id: string, x: number, y: number) => {
-      if (onShapeUpdate) {
-        onShapeUpdate(id, { x, y });
+      // Update local drag state for instant visual feedback
+      setLocalDragState((prev) => ({
+        ...prev,
+        [id]: { x, y },
+      }));
+
+      // Clear existing timer for this shape
+      if (updateTimers.current[id]) {
+        clearTimeout(updateTimers.current[id]);
       }
+
+      // Use different debounce rates based on dragging activity
+      const isActivelyDragging = activeDraggingShapes.current.has(id);
+      const debounceDelay = isActivelyDragging ? 4 : 8; // 4ms for active dragging (~250fps), 8ms for others (~120fps)
+
+      // Debounce the Firebase update for other users
+      updateTimers.current[id] = setTimeout(() => {
+        if (onShapeUpdate) {
+          onShapeUpdate(id, { x, y });
+        }
+        delete updateTimers.current[id];
+      }, debounceDelay);
     },
     [onShapeUpdate]
   );
 
-  const handleShapeDragEnd = useCallback(() => {
-    // Shape drag end handled in individual shape components
-  }, []);
+  const handleShapeDragEnd = useCallback(
+    (id: string, finalX?: number, finalY?: number) => {
+      // Clear any pending timer
+      if (updateTimers.current[id]) {
+        clearTimeout(updateTimers.current[id]);
+        delete updateTimers.current[id];
+      }
+
+      // Remove from active dragging set
+      activeDraggingShapes.current.delete(id);
+
+      // Final Firebase update with actual position from Konva
+      if (onShapeUpdate && finalX !== undefined && finalY !== undefined) {
+        onShapeUpdate(id, { x: finalX, y: finalY });
+
+        // Mark this shape as having a pending drag end
+        // Local state will be cleared when Firebase update is confirmed
+        pendingDragEnds.current.add(id);
+      } else {
+        // If no final position, clear immediately
+        setLocalDragState((prev) => {
+          const { [id]: removed, ...remaining } = prev;
+          return remaining;
+        });
+      }
+    },
+    [onShapeUpdate]
+  );
 
   const handleShapeChange = useCallback(
     (id: string, updates: Partial<Shape>) => {
@@ -408,11 +559,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       if (onShapeDelete) {
         onShapeDelete(id);
       }
-      setSelectedShapeIds((prev) =>
-        prev.filter((selectedId) => selectedId !== id)
+      setSelectedShapeIds(
+        selectedShapeIds.filter((selectedId) => selectedId !== id)
       );
     },
-    [onShapeDelete]
+    [onShapeDelete, selectedShapeIds, setSelectedShapeIds]
   );
 
   const clearCanvas = useCallback(() => {
@@ -439,13 +590,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   );
 
   // Handle viewport changes
-  const handleViewportChange = useCallback((newViewport: CanvasViewport) => {
-    setViewport(newViewport);
-  }, []);
+  const handleViewportChange = useCallback(
+    (newViewport: CanvasViewport) => {
+      const constrainedViewport = constrainViewport(newViewport);
+      setViewport(constrainedViewport);
+    },
+    [setViewport, constrainViewport]
+  );
 
   // Handle zoom with mouse wheel
   const handleWheel = useCallback(
-    (e: Konva.KonvaEventObject<WheelEvent>) => {
+    (e: KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
 
       const stage = stageRef.current;
@@ -472,13 +627,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const newX = mousePointTo.x - pointer.x / clampedScale;
       const newY = mousePointTo.y - pointer.y / clampedScale;
 
-      setViewport({
+      const newViewport = {
         x: newX,
         y: newY,
         scale: clampedScale,
-      });
+      };
+
+      const constrainedViewport = constrainViewport(newViewport);
+      setViewport(constrainedViewport);
     },
-    [viewport]
+    [viewport, setViewport, constrainViewport]
   );
 
   // Handle pan start
@@ -487,51 +645,24 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   }, []);
 
   // Handle pan move
-  const handlePanMove = useCallback((delta: Point) => {
-    setViewport((prev) => ({
-      ...prev,
-      x: prev.x + delta.x / prev.scale,
-      y: prev.y + delta.y / prev.scale,
-    }));
-  }, []);
+  const handlePanMove = useCallback(
+    (delta: Point) => {
+      const newViewport = {
+        ...viewport,
+        x: viewport.x + delta.x / viewport.scale,
+        y: viewport.y + delta.y / viewport.scale,
+      };
+
+      const constrainedViewport = constrainViewport(newViewport);
+      setViewport(constrainedViewport);
+    },
+    [viewport, setViewport, constrainViewport]
+  );
 
   // Handle pan end
   const handlePanEnd = useCallback(() => {
     setIsPanMode(false);
   }, []);
-
-  // Constrain viewport to canvas boundaries
-  useEffect(() => {
-    // Calculate the visible area in virtual coordinates
-    const visibleWidth = width / viewport.scale;
-    const visibleHeight = height / viewport.scale;
-
-    // When zoomed out a lot, ensure the canvas stays visible
-    // The viewport should keep the canvas centered or at least partially visible
-    let minX, minY, maxX, maxY;
-
-    if (visibleWidth >= virtualWidth && visibleHeight >= virtualHeight) {
-      // When we can see the full canvas, center it
-      const centerX = virtualWidth / 2 - visibleWidth / 2;
-      const centerY = virtualHeight / 2 - visibleHeight / 2;
-      minX = centerX;
-      minY = centerY;
-      maxX = centerX;
-      maxY = centerY;
-    } else {
-      // When zoomed in, allow movement within canvas boundaries
-      minX = -(virtualWidth - visibleWidth);
-      minY = -(virtualHeight - visibleHeight);
-      maxX = virtualWidth - visibleWidth;
-      maxY = virtualHeight - visibleHeight;
-    }
-
-    setViewport((prev) => ({
-      x: Math.max(minX, Math.min(maxX, prev.x)),
-      y: Math.max(minY, Math.min(maxY, prev.y)),
-      scale: prev.scale,
-    }));
-  }, [viewport.scale, virtualWidth, virtualHeight, width, height]);
 
   return (
     <div

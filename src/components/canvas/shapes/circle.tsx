@@ -2,8 +2,9 @@
 
 import React, { useRef, useState, useCallback } from "react";
 import { Circle } from "react-konva";
-import Konva from "konva";
-import { Shape } from "../types";
+import type { KonvaEventObject } from "konva/lib/Node";
+import type { Circle as KonvaCircle } from "konva/lib/shapes/Circle";
+import { Shape } from "@/types";
 
 interface CircleProps {
   shape: Shape;
@@ -11,7 +12,7 @@ interface CircleProps {
   onSelect: (id: string) => void;
   onDragStart: (id: string) => void;
   onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string) => void;
+  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
   onShapeChange: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
@@ -28,7 +29,7 @@ export function CircleShape({
   virtualWidth,
   virtualHeight,
 }: CircleProps) {
-  const circleRef = useRef<Konva.Circle>(null);
+  const circleRef = useRef<KonvaCircle>(null);
   const [, _setIsDragging] = useState(false);
 
   const handleDragStart = useCallback(() => {
@@ -64,11 +65,20 @@ export function CircleShape({
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
-    onDragEnd(shape.id);
+
+    // Get final position and pass it to parent
+    const circle = circleRef.current;
+    if (circle) {
+      const finalX = circle.x();
+      const finalY = circle.y();
+      onDragEnd(shape.id, finalX, finalY);
+    } else {
+      onDragEnd(shape.id);
+    }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
       onSelect(shape.id);
     },

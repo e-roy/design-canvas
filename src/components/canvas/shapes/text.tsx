@@ -2,8 +2,9 @@
 
 import React, { useRef, useState, useCallback } from "react";
 import { Text } from "react-konva";
-import Konva from "konva";
-import { Shape } from "../types";
+import type { KonvaEventObject } from "konva/lib/Node";
+import type { Text as KonvaText } from "konva/lib/shapes/Text";
+import { Shape } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ interface TextProps {
   onSelect: (id: string) => void;
   onDragStart: (id: string) => void;
   onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string) => void;
+  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
   onShapeChange: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
@@ -37,7 +38,7 @@ export function TextShape({
   virtualWidth,
   virtualHeight,
 }: TextProps) {
-  const textRef = useRef<Konva.Text>(null);
+  const textRef = useRef<KonvaText>(null);
   const [, _setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(shape.text || "");
@@ -76,11 +77,20 @@ export function TextShape({
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
-    onDragEnd(shape.id);
+
+    // Get final position and pass it to parent
+    const text = textRef.current;
+    if (text) {
+      const finalX = text.x();
+      const finalY = text.y();
+      onDragEnd(shape.id, finalX, finalY);
+    } else {
+      onDragEnd(shape.id);
+    }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
       onSelect(shape.id);
     },

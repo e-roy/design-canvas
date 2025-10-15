@@ -2,8 +2,9 @@
 
 import React, { useRef, useState, useCallback } from "react";
 import { Rect } from "react-konva";
-import Konva from "konva";
-import { Shape } from "../types";
+import type { KonvaEventObject } from "konva/lib/Node";
+import type { Rect as KonvaRect } from "konva/lib/shapes/Rect";
+import { Shape } from "@/types";
 
 interface RectangleProps {
   shape: Shape;
@@ -11,7 +12,7 @@ interface RectangleProps {
   onSelect: (id: string) => void;
   onDragStart: (id: string) => void;
   onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string) => void;
+  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
   onShapeChange: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
@@ -28,7 +29,7 @@ export function RectangleShape({
   virtualWidth,
   virtualHeight,
 }: RectangleProps) {
-  const rectRef = useRef<Konva.Rect>(null);
+  const rectRef = useRef<KonvaRect>(null);
   const [, _setIsDragging] = useState(false);
 
   const handleDragStart = useCallback(() => {
@@ -56,6 +57,7 @@ export function RectangleShape({
     // Update position
     rect.position({ x: newX, y: newY });
 
+    // Only call onDragMove for visual updates, not Firebase
     onDragMove(shape.id, newX, newY);
   }, [
     shape.id,
@@ -68,11 +70,20 @@ export function RectangleShape({
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
-    onDragEnd(shape.id);
+
+    // Get final position and pass it to parent
+    const rect = rectRef.current;
+    if (rect) {
+      const finalX = rect.x();
+      const finalY = rect.y();
+      onDragEnd(shape.id, finalX, finalY);
+    } else {
+      onDragEnd(shape.id);
+    }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
       onSelect(shape.id);
     },
