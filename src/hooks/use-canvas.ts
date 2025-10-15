@@ -80,8 +80,9 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
     };
 
     return () => {
-      if (subscriptionRef.current.unsubscribe) {
-        subscriptionRef.current.unsubscribe();
+      const unsubscribe = subscriptionRef.current.unsubscribe;
+      if (unsubscribe) {
+        unsubscribe();
         subscriptionRef.current.unsubscribe = undefined;
       }
     };
@@ -89,12 +90,11 @@ export function useCanvas(documentId?: string): UseCanvasReturn {
 
   // Cleanup subscriptions when documentId or user changes
   useEffect(() => {
-    const subscription = subscriptionRef.current;
-
     return () => {
-      if (subscription.unsubscribe) {
-        subscription.unsubscribe();
-        subscription.unsubscribe = undefined;
+      const unsubscribe = subscriptionRef.current.unsubscribe;
+      if (unsubscribe) {
+        unsubscribe();
+        subscriptionRef.current.unsubscribe = undefined;
       }
     };
   }, [documentId, user]);

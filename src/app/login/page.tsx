@@ -1,12 +1,6 @@
 "use client";
 
-import type {
-  Auth,
-  AuthError,
-  AuthProvider,
-  UserCredential,
-} from "firebase/auth";
-import { browserPopupRedirectResolver } from "firebase/auth";
+import type { UserCredential } from "firebase/auth";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,7 +23,6 @@ import { getAuthErrorMessage } from "@/lib/auth-errors";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
   GoogleAuthProvider,
   updateProfile,
 } from "firebase/auth";

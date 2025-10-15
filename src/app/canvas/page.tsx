@@ -11,7 +11,7 @@ import { useCursorStore } from "@/store/cursor-store";
 import { Canvas, CanvasRef, Shape } from "@/components/canvas";
 import { StoredShape, CursorPosition } from "@/types";
 import { cursorManager } from "@/lib/cursor-manager";
-import { Square, Circle, MousePointer, Hand } from "lucide-react";
+import { Square, Circle, MousePointer } from "lucide-react";
 
 // Use a fixed document ID for the main collaborative canvas
 const MAIN_CANVAS_ID = "main-collaborative-canvas";
@@ -92,7 +92,7 @@ export default function CanvasPage() {
         cursorManager.clearUserCursor();
       };
     }
-  }, [user]);
+  }, [user, setCursors]);
 
   // Handle mouse movement for cursor tracking
   const handleMouseMove = (position: CursorPosition) => {

@@ -22,6 +22,7 @@ export const useCursorStore = create<CursorStore>((set) => ({
   removeCursor: (userId) =>
     set((state) => {
       const { [userId]: removed, ...remainingCursors } = state.cursors;
+      void removed;
       return { cursors: remainingCursors };
     }),
   clearCursors: () => set({ cursors: {} }),
