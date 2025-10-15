@@ -20,13 +20,18 @@ export function Cursor({ cursor, viewport }: CursorProps) {
   // Use a fixed scale for consistent cursor size across zoom levels
   const cursorScale = 1;
 
+  // Fine-tune cursor positioning to align the icon's tip with the actual mouse position
+  // These values can be adjusted to perfectly align the cursor tip
+  const cursorTipOffsetX = 3; // Adjust this value to fine-tune horizontal alignment
+  const cursorTipOffsetY = 3; // Adjust this value to fine-tune vertical alignment
+
   return (
     <div
-      className="absolute pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-75 ease-out"
+      className="absolute pointer-events-none z-50"
       style={{
-        left: screenX,
-        top: screenY,
-        transform: `translate(-50%, -50%) scale(${cursorScale})`,
+        left: screenX - cursorTipOffsetX,
+        top: screenY - cursorTipOffsetY,
+        transform: `scale(${cursorScale})`,
       }}
     >
       {/* Cursor pointer */}
@@ -46,7 +51,7 @@ export function Cursor({ cursor, viewport }: CursorProps) {
 
       {/* User name label */}
       <div
-        className="absolute top-5 left-2 px-2 py-1 rounded text-xs font-medium text-white whitespace-nowrap shadow-md"
+        className="absolute top-6 left-4 px-2 py-1 rounded text-xs font-medium text-white whitespace-nowrap shadow-md"
         style={{
           backgroundColor: color,
           transform: `scale(${cursorScale})`,

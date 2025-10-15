@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
 import { CompactPresence } from "@/components/compact-presence";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { useUserStore } from "@/store/user-store";
 import { useCursorStore } from "@/store/cursor-store";
 import {
@@ -14,11 +19,16 @@ import {
   useCanvasTool,
   useCanvasDimensions,
   useCanvasActions,
+  useSelectedShapeIds,
 } from "@/store/canvas-store";
-import { Canvas, CanvasRef } from "@/components/canvas";
+import {
+  Canvas,
+  CanvasRef,
+  PropertiesPanel,
+  Toolbar,
+} from "@/components/canvas";
 import { StoredShape, CursorPosition, Shape } from "@/types";
 import { cursorManager } from "@/lib/cursor-manager";
-import { Square, Circle, MousePointer } from "lucide-react";
 
 // Use a fixed document ID for the main collaborative canvas
 const MAIN_CANVAS_ID = "main-collaborative-canvas";
@@ -34,6 +44,7 @@ export default function CanvasPage() {
   const canvasError = useCanvasError();
   const currentTool = useCanvasTool();
   const canvasDimensions = useCanvasDimensions();
+  const selectedShapeIds = useSelectedShapeIds();
   const {
     setDocumentId,
     saveShape,
@@ -267,6 +278,12 @@ export default function CanvasPage() {
     }
   };
 
+  // Get the currently selected shape
+  const selectedShape =
+    selectedShapeIds.length === 1
+      ? shapes.find((shape) => shape.id === selectedShapeIds[0]) || null
+      : null;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -287,78 +304,46 @@ export default function CanvasPage() {
         </div>
       </header>
 
-      {/* Canvas Area */}
+      {/* Canvas Area with Resizable Sidebar */}
       <main className="flex-1 relative">
-        <div className="absolute inset-0 bg-white dark:bg-gray-800">
-          <Canvas
-            ref={canvasRef}
-            width={canvasDimensions.width}
-            height={canvasDimensions.height}
-            shapes={canvasShapes}
-            onShapeCreate={handleShapeCreate}
-            onShapeUpdate={handleShapeUpdate}
-            onShapeDelete={handleShapeDelete}
-            onToolChange={setCurrentTool}
-            onMouseMove={handleMouseMove}
-            currentUserId={user?.uid}
-            className="w-full h-full"
-          />
-        </div>
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Main Canvas Panel */}
+          <ResizablePanel defaultSize={75} minSize={50}>
+            <div className="h-full bg-white dark:bg-gray-800">
+              <Canvas
+                ref={canvasRef}
+                width={canvasDimensions.width}
+                height={canvasDimensions.height}
+                shapes={canvasShapes}
+                onShapeCreate={handleShapeCreate}
+                onShapeUpdate={handleShapeUpdate}
+                onShapeDelete={handleShapeDelete}
+                onToolChange={setCurrentTool}
+                onMouseMove={handleMouseMove}
+                currentUserId={user?.uid}
+                className="w-full h-full"
+              />
+            </div>
+          </ResizablePanel>
+
+          {/* Resizable Handle */}
+          <ResizableHandle withHandle />
+
+          {/* Properties Panel */}
+          <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+            <div className="h-full bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+              <PropertiesPanel
+                selectedShape={selectedShape}
+                onShapeUpdate={handleShapeUpdate}
+                onShapeDelete={handleShapeDelete}
+              />
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </main>
 
       {/* Toolbar */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant={currentTool === "select" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleToolChange("select")}
-              className="flex items-center gap-2"
-            >
-              <MousePointer className="w-4 h-4" />
-              Select
-            </Button>
-            {/* <Button
-              variant={currentTool === "pan" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleToolChange("pan")}
-              className="flex items-center gap-2"
-            >
-              <Hand className="w-4 h-4" />
-              Pan
-            </Button> */}
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1" />
-            <Button
-              variant={currentTool === "rectangle" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleToolChange("rectangle")}
-              className="flex items-center gap-2"
-            >
-              <Square className="w-4 h-4" />
-              Rectangle
-            </Button>
-            <Button
-              variant={currentTool === "circle" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleToolChange("circle")}
-              className="flex items-center gap-2"
-            >
-              <Circle className="w-4 h-4" />
-              Circle
-            </Button>
-            {/* <Button
-              variant={currentTool === "text" ? "default" : "outline"}
-              size="sm"
-              onClick={() => handleToolChange("text")}
-              className="flex items-center gap-2"
-            >
-              <Type className="w-4 h-4" />
-              Text
-            </Button> */}
-          </div>
-        </div>
-      </div>
+      <Toolbar currentTool={currentTool} onToolChange={handleToolChange} />
     </div>
   );
 }

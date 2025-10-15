@@ -214,20 +214,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       // Use very minimal debouncing for ultra-smooth movement
       const isActivelyDragging = activeDraggingShapes.current.has(id);
 
-      // For active dragging, send immediate updates for very small movements
+      // For active dragging, send immediate updates with no backup timer
       if (isActivelyDragging) {
-        // Send immediate update for active dragging
+        // Send immediate update for active dragging - no delays
         if (onShapeUpdate) {
           onShapeUpdate(id, { x, y });
         }
-
-        // Still set a backup timer in case the immediate update fails
-        updateTimers.current[id] = setTimeout(() => {
-          if (onShapeUpdate) {
-            onShapeUpdate(id, { x, y });
-          }
-          delete updateTimers.current[id];
-        }, 8); // 8ms backup timer
       } else {
         // For non-active dragging, use minimal debouncing
         updateTimers.current[id] = setTimeout(() => {
@@ -235,7 +227,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             onShapeUpdate(id, { x, y });
           }
           delete updateTimers.current[id];
-        }, 4); // 4ms for non-active dragging
+        }, 2); // Reduced to 2ms for non-active dragging
       }
     },
     [onShapeUpdate]
@@ -321,10 +313,15 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       };
 
       setIsCreatingShape(false);
-      setCurrentTool("select");
 
-      // Notify parent component of tool change
-      onToolChange?.("select");
+      // Smart tool switching logic:
+      // - Keep shape tools active for creating multiple shapes
+      // - Only switch to select for text tool (since it's typically one-off)
+      if (type === "text") {
+        setCurrentTool("select");
+        onToolChange?.("select");
+      }
+      // For rectangle and circle, stay in the current tool
 
       // Notify parent component (it will handle saving to database)
       onShapeCreate?.(newShape);
