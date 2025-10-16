@@ -15,7 +15,7 @@ export interface CanvasDocument {
 
 export interface StoredShape {
   id: string;
-  type: "rectangle" | "circle" | "text";
+  type: "rectangle" | "circle" | "text" | "line";
   x: number;
   y: number;
   width?: number;
@@ -23,6 +23,10 @@ export interface StoredShape {
   radius?: number;
   text?: string;
   fontSize?: number;
+  startX?: number;
+  startY?: number;
+  endX?: number;
+  endY?: number;
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
@@ -95,7 +99,7 @@ export interface CanvasViewport {
 
 export interface Shape {
   id: string;
-  type: "rectangle" | "circle" | "text";
+  type: "rectangle" | "circle" | "text" | "line";
   x: number;
   y: number;
   width?: number;
@@ -103,6 +107,10 @@ export interface Shape {
   radius?: number;
   text?: string;
   fontSize?: number;
+  startX?: number;
+  startY?: number;
+  endX?: number;
+  endY?: number;
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
@@ -128,7 +136,7 @@ export interface CanvasState {
   viewport: CanvasViewport;
   isPanMode: boolean;
   isCreatingShape: boolean;
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text";
+  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
 }
 
 export interface CanvasProps {
@@ -144,7 +152,7 @@ export interface CanvasProps {
   onShapeUpdate?: (shapeId: string, updates: Partial<Shape>) => void;
   onShapeDelete?: (shapeId: string) => void;
   onToolChange?: (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text"
+    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
   ) => void;
   onMouseMove?: (position: import("@/types").CursorPosition) => void;
   currentUserId?: string;
@@ -161,7 +169,7 @@ export interface ViewportProps {
   onPanMove?: (delta: Point) => void;
   onPanEnd?: () => void;
   children?: React.ReactNode;
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text";
+  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
 }
 
 export interface GridProps {

@@ -1,13 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StoredShape } from "@/types";
-import { Trash2, Square, Circle, Type } from "lucide-react";
+import { Trash2, Square, Circle, Type, Minus } from "lucide-react";
 
 interface PropertiesPanelProps {
   selectedShape: StoredShape | null;
@@ -20,6 +20,50 @@ export function PropertiesPanel({
   onShapeUpdate,
   onShapeDelete,
 }: PropertiesPanelProps) {
+  // Local state for input values to prevent conflicts with rapid typing
+  const [localValues, setLocalValues] = useState<Partial<StoredShape>>({});
+  const updateTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Update local values when selectedShape changes
+  useEffect(() => {
+    if (selectedShape) {
+      setLocalValues(selectedShape);
+    } else {
+      setLocalValues({});
+    }
+  }, [selectedShape]);
+
+  // Debounced update function
+  const debouncedUpdate = useCallback(
+    (property: keyof StoredShape, value: string | number) => {
+      if (!selectedShape) return;
+
+      // Clear existing timeout for this property
+      if (updateTimeouts.current[property]) {
+        clearTimeout(updateTimeouts.current[property]);
+      }
+
+      // Update local state immediately for responsive UI
+      setLocalValues((prev) => ({ ...prev, [property]: value }));
+
+      // Debounce the actual update to prevent race conditions
+      updateTimeouts.current[property] = setTimeout(() => {
+        onShapeUpdate(selectedShape.id, { [property]: value });
+        delete updateTimeouts.current[property];
+      }, 300); // 300ms debounce
+    },
+    [selectedShape, onShapeUpdate]
+  );
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(updateTimeouts.current).forEach((timeout) => {
+        clearTimeout(timeout);
+      });
+    };
+  }, []);
+
   if (!selectedShape) {
     return (
       <div className="h-full flex items-center justify-center p-6">
@@ -36,15 +80,6 @@ export function PropertiesPanel({
     );
   }
 
-  const handlePropertyChange = (
-    property: keyof StoredShape,
-    value: string | number
-  ) => {
-    if (selectedShape) {
-      onShapeUpdate(selectedShape.id, { [property]: value });
-    }
-  };
-
   const handleDelete = () => {
     if (selectedShape) {
       onShapeDelete(selectedShape.id);
@@ -59,6 +94,8 @@ export function PropertiesPanel({
         return <Circle className="w-4 h-4" />;
       case "text":
         return <Type className="w-4 h-4" />;
+      case "line":
+        return <Minus className="w-4 h-4" />;
       default:
         return <Square className="w-4 h-4" />;
     }
@@ -88,9 +125,9 @@ export function PropertiesPanel({
                 <Input
                   id="x"
                   type="number"
-                  value={Math.round(selectedShape.x)}
+                  value={Math.round(localValues.x || 0)}
                   onChange={(e) =>
-                    handlePropertyChange("x", parseFloat(e.target.value) || 0)
+                    debouncedUpdate("x", parseFloat(e.target.value) || 0)
                   }
                   className="h-8 text-xs"
                 />
@@ -102,9 +139,9 @@ export function PropertiesPanel({
                 <Input
                   id="y"
                   type="number"
-                  value={Math.round(selectedShape.y)}
+                  value={Math.round(localValues.y || 0)}
                   onChange={(e) =>
-                    handlePropertyChange("y", parseFloat(e.target.value) || 0)
+                    debouncedUpdate("y", parseFloat(e.target.value) || 0)
                   }
                   className="h-8 text-xs"
                 />
@@ -128,12 +165,9 @@ export function PropertiesPanel({
                   <Input
                     id="width"
                     type="number"
-                    value={Math.round(selectedShape.width || 0)}
+                    value={Math.round(localValues.width || 0)}
                     onChange={(e) =>
-                      handlePropertyChange(
-                        "width",
-                        parseFloat(e.target.value) || 0
-                      )
+                      debouncedUpdate("width", parseFloat(e.target.value) || 0)
                     }
                     className="h-8 text-xs"
                   />
@@ -145,12 +179,9 @@ export function PropertiesPanel({
                   <Input
                     id="height"
                     type="number"
-                    value={Math.round(selectedShape.height || 0)}
+                    value={Math.round(localValues.height || 0)}
                     onChange={(e) =>
-                      handlePropertyChange(
-                        "height",
-                        parseFloat(e.target.value) || 0
-                      )
+                      debouncedUpdate("height", parseFloat(e.target.value) || 0)
                     }
                     className="h-8 text-xs"
                   />
@@ -167,15 +198,79 @@ export function PropertiesPanel({
               </Label>
               <Input
                 type="number"
-                value={Math.round(selectedShape.radius || 0)}
+                value={Math.round(localValues.radius || 0)}
                 onChange={(e) =>
-                  handlePropertyChange(
-                    "radius",
-                    parseFloat(e.target.value) || 0
-                  )
+                  debouncedUpdate("radius", parseFloat(e.target.value) || 0)
                 }
                 className="h-8 text-xs"
               />
+            </div>
+          )}
+
+          {/* Line Points - Line */}
+          {selectedShape.type === "line" && (
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                Line Points
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="startX" className="text-xs">
+                    Start X
+                  </Label>
+                  <Input
+                    id="startX"
+                    type="number"
+                    value={Math.round(localValues.startX || 0)}
+                    onChange={(e) =>
+                      debouncedUpdate("startX", parseFloat(e.target.value) || 0)
+                    }
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="startY" className="text-xs">
+                    Start Y
+                  </Label>
+                  <Input
+                    id="startY"
+                    type="number"
+                    value={Math.round(localValues.startY || 0)}
+                    onChange={(e) =>
+                      debouncedUpdate("startY", parseFloat(e.target.value) || 0)
+                    }
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="endX" className="text-xs">
+                    End X
+                  </Label>
+                  <Input
+                    id="endX"
+                    type="number"
+                    value={Math.round(localValues.endX || 0)}
+                    onChange={(e) =>
+                      debouncedUpdate("endX", parseFloat(e.target.value) || 0)
+                    }
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="endY" className="text-xs">
+                    End Y
+                  </Label>
+                  <Input
+                    id="endY"
+                    type="number"
+                    value={Math.round(localValues.endY || 0)}
+                    onChange={(e) =>
+                      debouncedUpdate("endY", parseFloat(e.target.value) || 0)
+                    }
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -186,8 +281,8 @@ export function PropertiesPanel({
                 Text Content
               </Label>
               <Input
-                value={selectedShape.text || ""}
-                onChange={(e) => handlePropertyChange("text", e.target.value)}
+                value={localValues.text || ""}
+                onChange={(e) => debouncedUpdate("text", e.target.value)}
                 className="h-8 text-xs"
                 placeholder="Enter text..."
               />
@@ -198,9 +293,9 @@ export function PropertiesPanel({
                 <Input
                   id="fontSize"
                   type="number"
-                  value={selectedShape.fontSize || 16}
+                  value={localValues.fontSize || 16}
                   onChange={(e) =>
-                    handlePropertyChange(
+                    debouncedUpdate(
                       "fontSize",
                       parseFloat(e.target.value) || 16
                     )
@@ -227,17 +322,13 @@ export function PropertiesPanel({
                   <Input
                     id="fill"
                     type="color"
-                    value={selectedShape.fill || "#ffffff"}
-                    onChange={(e) =>
-                      handlePropertyChange("fill", e.target.value)
-                    }
+                    value={localValues.fill || "#ffffff"}
+                    onChange={(e) => debouncedUpdate("fill", e.target.value)}
                     className="h-8 w-12 p-0 border-0"
                   />
                   <Input
-                    value={selectedShape.fill || "#ffffff"}
-                    onChange={(e) =>
-                      handlePropertyChange("fill", e.target.value)
-                    }
+                    value={localValues.fill || "#ffffff"}
+                    onChange={(e) => debouncedUpdate("fill", e.target.value)}
                     className="h-8 text-xs flex-1"
                     placeholder="#ffffff"
                   />
@@ -251,17 +342,13 @@ export function PropertiesPanel({
                   <Input
                     id="stroke"
                     type="color"
-                    value={selectedShape.stroke || "#000000"}
-                    onChange={(e) =>
-                      handlePropertyChange("stroke", e.target.value)
-                    }
+                    value={localValues.stroke || "#000000"}
+                    onChange={(e) => debouncedUpdate("stroke", e.target.value)}
                     className="h-8 w-12 p-0 border-0"
                   />
                   <Input
-                    value={selectedShape.stroke || "#000000"}
-                    onChange={(e) =>
-                      handlePropertyChange("stroke", e.target.value)
-                    }
+                    value={localValues.stroke || "#000000"}
+                    onChange={(e) => debouncedUpdate("stroke", e.target.value)}
                     className="h-8 text-xs flex-1"
                     placeholder="#000000"
                   />
@@ -274,9 +361,9 @@ export function PropertiesPanel({
                 <Input
                   id="strokeWidth"
                   type="number"
-                  value={selectedShape.strokeWidth || 1}
+                  value={localValues.strokeWidth || 1}
                   onChange={(e) =>
-                    handlePropertyChange(
+                    debouncedUpdate(
                       "strokeWidth",
                       parseFloat(e.target.value) || 1
                     )
@@ -301,12 +388,9 @@ export function PropertiesPanel({
               <Input
                 id="rotation"
                 type="number"
-                value={selectedShape.rotation || 0}
+                value={localValues.rotation || 0}
                 onChange={(e) =>
-                  handlePropertyChange(
-                    "rotation",
-                    parseFloat(e.target.value) || 0
-                  )
+                  debouncedUpdate("rotation", parseFloat(e.target.value) || 0)
                 }
                 className="h-8 text-xs"
               />

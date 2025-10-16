@@ -216,7 +216,7 @@ export default function CanvasPage() {
   };
 
   const handleToolChange = (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text"
+    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
   ) => {
     setCurrentTool(tool);
     canvasRef.current?.setTool(tool);

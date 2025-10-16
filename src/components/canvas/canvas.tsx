@@ -15,7 +15,7 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import { CanvasProps, CanvasViewport, Point, Shape } from "@/types";
 import { Viewport } from "./viewport";
 import { CanvasGrid } from "./grid";
-import { RectangleShape, CircleShape, TextShape } from "./shapes";
+import { RectangleShape, CircleShape, TextShape, LineShape } from "./shapes";
 import { CursorsOverlay } from "./cursor";
 import { CursorPosition } from "@/types";
 import {
@@ -32,7 +32,9 @@ const MIN_SCALE = 0.05; // Lower minimum scale to allow seeing full canvas
 const MAX_SCALE = 5;
 
 export interface CanvasRef {
-  setTool: (tool: "select" | "pan" | "rectangle" | "circle" | "text") => void;
+  setTool: (
+    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
+  ) => void;
   getViewport: () => CanvasViewport;
   getShapes: () => Shape[];
   deleteShape: (id: string) => void;
@@ -272,13 +274,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   );
 
   const handleCreateShape = useCallback(
-    (type: "rectangle" | "circle" | "text", x: number, y: number) => {
+    (type: "rectangle" | "circle" | "text" | "line", x: number, y: number) => {
       if (currentTool !== type) return;
 
       // Use preview shape dimensions if available, otherwise use defaults
       let width = 100;
       let height = 100;
       let radius = 50;
+      let startX = x;
+      let startY = y;
+      let endX = x + 100;
+      let endY = y;
 
       if (previewShape) {
         if (type === "rectangle" && previewShape.width && previewShape.height) {
@@ -286,6 +292,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           height = previewShape.height;
         } else if (type === "circle" && previewShape.radius) {
           radius = previewShape.radius;
+        } else if (
+          type === "line" &&
+          previewShape.startX &&
+          previewShape.startY &&
+          previewShape.endX &&
+          previewShape.endY
+        ) {
+          startX = previewShape.startX;
+          startY = previewShape.startY;
+          endX = previewShape.endX;
+          endY = previewShape.endY;
         }
       }
 
@@ -307,6 +324,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         ...(type === "rectangle" && { width, height }),
         ...(type === "circle" && { radius }),
         ...(type === "text" && { text: "Click to edit", fontSize: 16 }),
+        ...(type === "line" && { startX, startY, endX, endY }),
         fill: "#ffffff",
         stroke: "#000000",
         strokeWidth: 1,
@@ -339,7 +357,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   // Handle stage mouse down for starting shape creation
   const handleStageMouseDown = useCallback(() => {
-    if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
+    if (
+      !isCreatingShape ||
+      currentTool === "select" ||
+      currentTool === "pan" ||
+      currentTool === "text"
+    )
       return;
 
     const stage = stageRef.current;
@@ -365,7 +388,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     setCreationStartPoint(constrainedPoint);
 
-    // Create preview shape
+    // Create preview shape (for rectangle, circle, and line)
     const preview: Shape = {
       id: "preview",
       type: currentTool,
@@ -373,7 +396,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       y: constrainedPoint.y,
       ...(currentTool === "rectangle" && { width: 0, height: 0 }),
       ...(currentTool === "circle" && { radius: 0 }),
-      ...(currentTool === "text" && { text: "", fontSize: 16 }),
+      ...(currentTool === "line" && {
+        startX: constrainedPoint.x,
+        startY: constrainedPoint.y,
+        endX: constrainedPoint.x,
+        endY: constrainedPoint.y,
+      }),
       fill: "#ffffff",
       stroke: "#3b82f6",
       strokeWidth: 2,
@@ -515,6 +543,18 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             }
           : null
       );
+    } else if (currentTool === "line") {
+      setPreviewShape((prev) =>
+        prev
+          ? {
+              ...prev,
+              startX: creationStartPoint.x,
+              startY: creationStartPoint.y,
+              endX: virtualPoint.x,
+              endY: virtualPoint.y,
+            }
+          : null
+      );
     }
 
     // Also track cursor position when creating shapes
@@ -546,10 +586,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    // Create final shape (only for rectangle, circle, text)
+    // Create final shape (for rectangle, circle, line, text)
     if (
       currentTool === "rectangle" ||
       currentTool === "circle" ||
+      currentTool === "line" ||
       currentTool === "text"
     ) {
       handleCreateShape(
@@ -570,10 +611,21 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     handleCreateShape,
   ]);
 
-  // Handle stage click for creating shapes (fallback for text)
+  // Handle stage click for creating shapes and deselecting objects
   const handleStageClick = useCallback(() => {
-    if (!isCreatingShape || currentTool === "select" || currentTool === "pan")
+    // If we're in select mode, deselect all objects when clicking on empty area
+    if (currentTool === "select") {
+      setSelectedShapeIds([]);
       return;
+    }
+
+    // If we're in pan mode, don't do anything
+    if (currentTool === "pan") {
+      return;
+    }
+
+    // For shape creation tools, handle shape creation
+    if (!isCreatingShape) return;
 
     // For text, create on click since it doesn't need drag sizing
     if (currentTool === "text") {
@@ -603,17 +655,18 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       handleCreateShape(currentTool, constrainedX, constrainedY);
     }
   }, [
-    isCreatingShape,
     currentTool,
+    isCreatingShape,
     viewport,
     handleCreateShape,
     virtualWidth,
     virtualHeight,
+    setSelectedShapeIds,
   ]);
 
   // Canvas methods for imperative access
   const setTool = useCallback(
-    (tool: "select" | "pan" | "rectangle" | "circle" | "text") => {
+    (tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line") => {
       setCurrentTool(tool);
       setIsCreatingShape(tool !== "select" && tool !== "pan");
       // Reset creation state when switching tools
@@ -831,6 +884,23 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                       virtualHeight={virtualHeight}
                     />
                   )}
+                {previewShape.type === "line" &&
+                  previewShape.startX !== undefined &&
+                  previewShape.startY !== undefined &&
+                  previewShape.endX !== undefined &&
+                  previewShape.endY !== undefined && (
+                    <LineShape
+                      shape={previewShape}
+                      isSelected={false}
+                      onSelect={() => {}}
+                      onDragStart={() => {}}
+                      onDragMove={() => {}}
+                      onDragEnd={() => {}}
+                      onShapeChange={() => {}}
+                      virtualWidth={virtualWidth}
+                      virtualHeight={virtualHeight}
+                    />
+                  )}
               </>
             )}
 
@@ -872,6 +942,21 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                 case "text":
                   return (
                     <TextShape
+                      key={shape.id}
+                      shape={shape}
+                      isSelected={isSelected}
+                      onSelect={handleShapeSelect}
+                      onDragStart={handleShapeDragStart}
+                      onDragMove={handleShapeDragMove}
+                      onDragEnd={handleShapeDragEnd}
+                      onShapeChange={handleShapeChange}
+                      virtualWidth={virtualWidth}
+                      virtualHeight={virtualHeight}
+                    />
+                  );
+                case "line":
+                  return (
+                    <LineShape
                       key={shape.id}
                       shape={shape}
                       isSelected={isSelected}

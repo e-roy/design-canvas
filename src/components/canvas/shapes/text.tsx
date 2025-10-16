@@ -5,15 +5,6 @@ import { Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Text as KonvaText } from "konva/lib/shapes/Text";
 import { Shape } from "@/types";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 interface TextProps {
   shape: Shape;
@@ -40,8 +31,6 @@ export function TextShape({
 }: TextProps) {
   const textRef = useRef<KonvaText>(null);
   const [, _setIsDragging] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(shape.text || "");
 
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
@@ -114,21 +103,6 @@ export function TextShape({
     });
   }, [shape.id, onShapeChange]);
 
-  const handleDblClick = useCallback(() => {
-    setIsEditing(true);
-    setEditText(shape.text || "");
-  }, [shape.text]);
-
-  const handleSaveEdit = useCallback(() => {
-    onShapeChange(shape.id, { text: editText });
-    setIsEditing(false);
-  }, [shape.id, editText, onShapeChange]);
-
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditText(shape.text || "");
-  }, [shape.text]);
-
   const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
 
@@ -150,32 +124,9 @@ export function TextShape({
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onClick={handleClick}
-        onDblClick={handleDblClick}
         onTransform={handleTransform}
         onTransformEnd={handleTransform}
       />
-
-      <Dialog open={isEditing} onOpenChange={setIsEditing}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Text</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              placeholder="Enter text..."
-              className="min-h-[100px]"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelEdit}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveEdit}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -15,12 +15,13 @@ import {
   Circle,
   Type,
   ChevronDown,
+  Minus,
 } from "lucide-react";
 
 interface ToolbarProps {
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text";
+  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
   onToolChange: (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text"
+    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
   ) => void;
 }
 
@@ -34,9 +35,12 @@ export function Toolbar({ currentTool, onToolChange }: ToolbarProps) {
   };
 
   const getShapeIcon = () => {
-    // Show the current tool icon, default to rectangle if neither is active
+    // Show the current tool icon, default to rectangle if none are active
     if (currentTool === "circle") {
       return <Circle className="w-4 h-4" />;
+    }
+    if (currentTool === "line") {
+      return <Minus className="w-4 h-4" />;
     }
     return <Square className="w-4 h-4" />;
   };
@@ -96,7 +100,9 @@ export function Toolbar({ currentTool, onToolChange }: ToolbarProps) {
           <div className="flex items-center">
             <Button
               variant={
-                currentTool === "rectangle" || currentTool === "circle"
+                currentTool === "rectangle" ||
+                currentTool === "circle" ||
+                currentTool === "line"
                   ? "default"
                   : "outline"
               }
@@ -110,7 +116,9 @@ export function Toolbar({ currentTool, onToolChange }: ToolbarProps) {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant={
-                    currentTool === "rectangle" || currentTool === "circle"
+                    currentTool === "rectangle" ||
+                    currentTool === "circle" ||
+                    currentTool === "line"
                       ? "default"
                       : "outline"
                   }
@@ -135,19 +143,26 @@ export function Toolbar({ currentTool, onToolChange }: ToolbarProps) {
                   <Circle className="w-4 h-4 mr-2" />
                   Circle
                 </DropdownMenuItem>
+                {/* <DropdownMenuItem
+                  onClick={() => onToolChange("line")}
+                  className={currentTool === "line" ? "bg-accent" : ""}
+                >
+                  <Minus className="w-4 h-4 mr-2" />
+                  Line
+                </DropdownMenuItem> */}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
           {/* Text Tool */}
-          {/* <Button
+          <Button
             variant={currentTool === "text" ? "default" : "outline"}
             size="sm"
             onClick={() => onToolChange("text")}
             className="w-10 h-10 p-0"
           >
             <Type className="w-4 h-4" />
-          </Button> */}
+          </Button>
         </div>
       </div>
     </div>
