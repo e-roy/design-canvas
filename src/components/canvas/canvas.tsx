@@ -352,6 +352,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       onToolChange,
       virtualWidth,
       virtualHeight,
+      setCurrentTool,
     ]
   );
 
@@ -408,7 +409,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     };
 
     setPreviewShape(preview);
-  }, [isCreatingShape, currentTool, viewport, virtualWidth, virtualHeight]);
+  }, [
+    isCreatingShape,
+    currentTool,
+    viewport,
+    virtualWidth,
+    virtualHeight,
+    setSelectedShapeIds,
+  ]);
 
   // Global mouse move handler for cursor tracking (works during all interactions)
   const handleGlobalMouseMove = useCallback(
@@ -472,10 +480,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   // Cleanup effect to handle edge cases
   useEffect(() => {
+    const pendingDragEndsRef = pendingDragEnds.current;
+    const activeDraggingShapesRef = activeDraggingShapes.current;
+
     return () => {
       // Clear any pending drag ends on unmount
-      pendingDragEnds.current.clear();
-      activeDraggingShapes.current.clear();
+      pendingDragEndsRef.clear();
+      activeDraggingShapesRef.clear();
     };
   }, []);
 
@@ -673,7 +684,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       setCreationStartPoint(null);
       setPreviewShape(null);
     },
-    []
+    [setCurrentTool]
   );
 
   const getViewport = useCallback(() => viewport, [viewport]);
@@ -700,7 +711,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       }
     });
     setSelectedShapeIds([]);
-  }, [shapes, onShapeDelete]);
+  }, [shapes, onShapeDelete, setSelectedShapeIds]);
 
   // Expose methods to parent component
   useImperativeHandle(
@@ -1027,19 +1038,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             <>
               {/* Top boundary - show when viewport is at top of allowed area */}
               {viewport.y <= minY && (
-                <div className="absolute top-0 left-0 right-0 h-2 bg-neutral-900/50 shadow-lg" />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-400 shadow-lg" />
               )}
               {/* Bottom boundary - show when viewport is at bottom of allowed area */}
               {viewport.y >= maxY && (
-                <div className="absolute bottom-0 left-0 right-0 h-2 bg-neutral-900/50 shadow-lg" />
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-400 shadow-lg" />
               )}
               {/* Left boundary - show when viewport is at left of allowed area */}
               {viewport.x <= minX && (
-                <div className="absolute left-0 top-0 bottom-0 w-2 bg-neutral-900/50 shadow-lg" />
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-neutral-400 shadow-lg" />
               )}
               {/* Right boundary - show when viewport is at right of allowed area */}
               {viewport.x >= maxX && (
-                <div className="absolute right-0 top-0 bottom-0 w-2 bg-neutral-900/50 shadow-lg" />
+                <div className="absolute right-0 top-0 bottom-0 w-1 bg-neutral-400 shadow-lg" />
               )}
             </>
           );

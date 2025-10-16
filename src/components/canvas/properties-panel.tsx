@@ -57,8 +57,10 @@ export function PropertiesPanel({
 
   // Cleanup timeouts on unmount
   useEffect(() => {
+    const updateTimeoutsRef = updateTimeouts.current;
+
     return () => {
-      Object.values(updateTimeouts.current).forEach((timeout) => {
+      Object.values(updateTimeoutsRef).forEach((timeout) => {
         clearTimeout(timeout);
       });
     };

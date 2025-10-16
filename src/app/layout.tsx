@@ -24,8 +24,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isDev = process.env.NODE_ENV === "development";
   return (
     <html lang="en">
+      <head>
+        {/* The script will only be loaded in development */}
+        {isDev && (
+          // eslint-disable-next-line @next/next/no-sync-scripts
+          <script
+            crossOrigin="anonymous"
+            src="//unpkg.com/react-scan/dist/auto.global.js"
+          />
+        )}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

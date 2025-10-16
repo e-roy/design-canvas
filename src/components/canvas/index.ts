@@ -5,4 +5,6 @@ export { CanvasGrid } from "./grid";
 export * from "./shapes";
 export { Cursor, CursorsOverlay } from "./cursor";
 export { PropertiesPanel } from "./properties-panel";
+export { ObjectsList } from "./objects-list";
+export { CustomSidebarTrigger } from "./sidebar-triggers";
 export { Toolbar } from "./toolbar";
