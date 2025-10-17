@@ -9,11 +9,11 @@ import { Shape } from "@/types";
 interface TextProps {
   shape: Shape;
   isSelected: boolean;
-  onSelect: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
-  onShapeChange: (id: string, updates: Partial<Shape>) => void;
+  onSelect?: (id: string) => void;
+  onDragStart?: (id: string) => void;
+  onDragMove?: (id: string, x: number, y: number) => void;
+  onDragEnd?: (id: string, finalX?: number, finalY?: number) => void;
+  onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
 }
@@ -34,7 +34,7 @@ export const TextShape = memo(function TextShape({
 
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
-    onDragStart(shape.id);
+    onDragStart?.(shape.id);
 
     // Bring to front
     const text = textRef.current;
@@ -61,7 +61,7 @@ export const TextShape = memo(function TextShape({
     // Update position
     text.position({ x: newX, y: newY });
 
-    onDragMove(shape.id, newX, newY);
+    onDragMove?.(shape.id, newX, newY);
   }, [shape.id, onDragMove, virtualWidth, virtualHeight]);
 
   const handleDragEnd = useCallback(() => {
@@ -72,16 +72,16 @@ export const TextShape = memo(function TextShape({
     if (text) {
       const finalX = text.x();
       const finalY = text.y();
-      onDragEnd(shape.id, finalX, finalY);
+      onDragEnd?.(shape.id, finalX, finalY);
     } else {
-      onDragEnd(shape.id);
+      onDragEnd?.(shape.id);
     }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
-      onSelect(shape.id);
+      onSelect?.(shape.id);
     },
     [shape.id, onSelect]
   );
@@ -96,7 +96,7 @@ export const TextShape = memo(function TextShape({
     text.scaleX(1);
     text.scaleY(1);
 
-    onShapeChange(shape.id, {
+    onShapeChange?.(shape.id, {
       rotation: newRotation,
       x: text.x(),
       y: text.y(),

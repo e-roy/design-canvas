@@ -9,11 +9,11 @@ import { Shape } from "@/types";
 interface LineProps {
   shape: Shape;
   isSelected: boolean;
-  onSelect: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
-  onShapeChange: (id: string, updates: Partial<Shape>) => void;
+  onSelect?: (id: string) => void;
+  onDragStart?: (id: string) => void;
+  onDragMove?: (id: string, x: number, y: number) => void;
+  onDragEnd?: (id: string, finalX?: number, finalY?: number) => void;
+  onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
 }
@@ -34,7 +34,7 @@ export const LineShape = memo(function LineShape({
 
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
-    onDragStart(shape.id);
+    onDragStart?.(shape.id);
 
     // Bring to front
     const line = lineRef.current;
@@ -61,7 +61,7 @@ export const LineShape = memo(function LineShape({
     // Update position
     line.position({ x: newX, y: newY });
 
-    onDragMove(shape.id, newX, newY);
+    onDragMove?.(shape.id, newX, newY);
   }, [
     shape.id,
     shape.startX,
@@ -81,16 +81,16 @@ export const LineShape = memo(function LineShape({
     if (line) {
       const finalX = line.x();
       const finalY = line.y();
-      onDragEnd(shape.id, finalX, finalY);
+      onDragEnd?.(shape.id, finalX, finalY);
     } else {
-      onDragEnd(shape.id);
+      onDragEnd?.(shape.id);
     }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
-      onSelect(shape.id);
+      onSelect?.(shape.id);
     },
     [shape.id, onSelect]
   );
@@ -105,7 +105,7 @@ export const LineShape = memo(function LineShape({
     line.scaleX(1);
     line.scaleY(1);
 
-    onShapeChange(shape.id, {
+    onShapeChange?.(shape.id, {
       rotation: newRotation,
       x: line.x(),
       y: line.y(),

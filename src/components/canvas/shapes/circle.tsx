@@ -9,11 +9,11 @@ import { Shape } from "@/types";
 interface CircleProps {
   shape: Shape;
   isSelected: boolean;
-  onSelect: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
-  onShapeChange: (id: string, updates: Partial<Shape>) => void;
+  onSelect?: (id: string) => void;
+  onDragStart?: (id: string) => void;
+  onDragMove?: (id: string, x: number, y: number) => void;
+  onDragEnd?: (id: string, finalX?: number, finalY?: number) => void;
+  onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
 }
@@ -34,7 +34,7 @@ export const CircleShape = memo(function CircleShape({
 
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
-    onDragStart(shape.id);
+    onDragStart?.(shape.id);
 
     // Bring to front
     const circle = circleRef.current;
@@ -59,7 +59,7 @@ export const CircleShape = memo(function CircleShape({
     // Update position
     circle.position({ x: newX, y: newY });
 
-    onDragMove(shape.id, newX, newY);
+    onDragMove?.(shape.id, newX, newY);
   }, [shape.id, shape.radius, onDragMove, virtualWidth, virtualHeight]);
 
   const handleDragEnd = useCallback(() => {
@@ -70,16 +70,16 @@ export const CircleShape = memo(function CircleShape({
     if (circle) {
       const finalX = circle.x();
       const finalY = circle.y();
-      onDragEnd(shape.id, finalX, finalY);
+      onDragEnd?.(shape.id, finalX, finalY);
     } else {
-      onDragEnd(shape.id);
+      onDragEnd?.(shape.id);
     }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
-      onSelect(shape.id);
+      onSelect?.(shape.id);
     },
     [shape.id, onSelect]
   );
@@ -95,7 +95,7 @@ export const CircleShape = memo(function CircleShape({
     circle.scaleX(1);
     circle.scaleY(1);
 
-    onShapeChange(shape.id, {
+    onShapeChange?.(shape.id, {
       radius: Math.max(5, newRadius),
       rotation: newRotation,
       x: circle.x(),

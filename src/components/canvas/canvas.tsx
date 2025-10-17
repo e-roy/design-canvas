@@ -244,10 +244,10 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     return ghosts;
   }, [peerPresence, externalShapes, user?.uid]);
 
-  // Apply local drag positions and combine with ghost shapes
+  // Apply local drag positions to real shapes only
   const shapes = useMemo(() => {
     if (!externalShapes || externalShapes.length === 0) {
-      return ghostShapes;
+      return [];
     }
 
     const baseShapes = externalShapes.map((shape) => {
@@ -258,8 +258,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       return shape;
     });
 
-    return [...baseShapes, ...ghostShapes];
-  }, [externalShapes, localDragState, ghostShapes]);
+    return baseShapes;
+  }, [externalShapes, localDragState]);
+
+  // Separate ghost shapes for visual rendering only (not interactive)
+  const allShapesForRendering = useMemo(() => {
+    return [...shapes, ...ghostShapes];
+  }, [shapes, ghostShapes]);
 
   // Monitor Firebase updates to clear local drag state when confirmed
   useEffect(() => {
@@ -479,6 +484,24 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       }
 
       const isSelected = selectedShapeIds.includes(shape.id);
+      const isGhost = shape.id.startsWith("ghost-");
+
+      // For ghost shapes, render without interaction handlers
+      const interactionProps = isGhost
+        ? {
+            onSelect: undefined,
+            onDragStart: undefined,
+            onDragMove: undefined,
+            onDragEnd: undefined,
+            onShapeChange: undefined,
+          }
+        : {
+            onSelect: handleShapeSelect,
+            onDragStart: handleShapeDragStart,
+            onDragMove: handleShapeDragMove,
+            onDragEnd: handleShapeDragEnd,
+            onShapeChange: handleShapeChange,
+          };
 
       switch (shape.type) {
         case "rectangle":
@@ -487,11 +510,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               key={shape.id}
               shape={shape}
               isSelected={isSelected}
-              onSelect={handleShapeSelect}
-              onDragStart={handleShapeDragStart}
-              onDragMove={handleShapeDragMove}
-              onDragEnd={handleShapeDragEnd}
-              onShapeChange={handleShapeChange}
+              {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
             />
@@ -502,11 +521,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               key={shape.id}
               shape={shape}
               isSelected={isSelected}
-              onSelect={handleShapeSelect}
-              onDragStart={handleShapeDragStart}
-              onDragMove={handleShapeDragMove}
-              onDragEnd={handleShapeDragEnd}
-              onShapeChange={handleShapeChange}
+              {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
             />
@@ -517,11 +532,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               key={shape.id}
               shape={shape}
               isSelected={isSelected}
-              onSelect={handleShapeSelect}
-              onDragStart={handleShapeDragStart}
-              onDragMove={handleShapeDragMove}
-              onDragEnd={handleShapeDragEnd}
-              onShapeChange={handleShapeChange}
+              {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
             />
@@ -532,11 +543,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               key={shape.id}
               shape={shape}
               isSelected={isSelected}
-              onSelect={handleShapeSelect}
-              onDragStart={handleShapeDragStart}
-              onDragMove={handleShapeDragMove}
-              onDragEnd={handleShapeDragEnd}
-              onShapeChange={handleShapeChange}
+              {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
             />
@@ -1235,7 +1242,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             )}
 
             {/* Shapes */}
-            {shapes.map(renderShape)}
+            {allShapesForRendering.map(renderShape)}
           </Viewport>
         </Layer>
       </Stage>

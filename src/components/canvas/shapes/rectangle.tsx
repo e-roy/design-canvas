@@ -9,11 +9,11 @@ import { Shape } from "@/types";
 interface RectangleProps {
   shape: Shape;
   isSelected: boolean;
-  onSelect: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string, finalX?: number, finalY?: number) => void;
-  onShapeChange: (id: string, updates: Partial<Shape>) => void;
+  onSelect?: (id: string) => void;
+  onDragStart?: (id: string) => void;
+  onDragMove?: (id: string, x: number, y: number) => void;
+  onDragEnd?: (id: string, finalX?: number, finalY?: number) => void;
+  onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
 }
@@ -34,7 +34,7 @@ export const RectangleShape = memo(function RectangleShape({
 
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
-    onDragStart(shape.id);
+    onDragStart?.(shape.id);
 
     // Bring to front
     const rect = rectRef.current;
@@ -58,7 +58,7 @@ export const RectangleShape = memo(function RectangleShape({
     rect.position({ x: newX, y: newY });
 
     // Only call onDragMove for visual updates, not Firebase
-    onDragMove(shape.id, newX, newY);
+    onDragMove?.(shape.id, newX, newY);
   }, [
     shape.id,
     shape.width,
@@ -76,16 +76,16 @@ export const RectangleShape = memo(function RectangleShape({
     if (rect) {
       const finalX = rect.x();
       const finalY = rect.y();
-      onDragEnd(shape.id, finalX, finalY);
+      onDragEnd?.(shape.id, finalX, finalY);
     } else {
-      onDragEnd(shape.id);
+      onDragEnd?.(shape.id);
     }
   }, [shape.id, onDragEnd]);
 
   const handleClick = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
-      onSelect(shape.id);
+      onSelect?.(shape.id);
     },
     [shape.id, onSelect]
   );
@@ -102,7 +102,7 @@ export const RectangleShape = memo(function RectangleShape({
     rect.scaleX(1);
     rect.scaleY(1);
 
-    onShapeChange(shape.id, {
+    onShapeChange?.(shape.id, {
       width: Math.max(10, newWidth),
       height: Math.max(10, newHeight),
       rotation: newRotation,
