@@ -1,4 +1,5 @@
 // Canvas database types for real-time collaboration
+import type { Timestamp } from "firebase/firestore";
 
 export interface CanvasDocument {
   id: string;
@@ -14,28 +15,35 @@ export interface CanvasDocument {
 }
 
 export interface StoredShape {
-  id: string;
+  canvasId: string; // NEW: future rooms/pages compatibility
   type: "rectangle" | "circle" | "text" | "line";
   x: number;
   y: number;
   width?: number;
-  height?: number;
-  radius?: number;
+  height?: number; // rect
+  radius?: number; // circle
   text?: string;
-  fontSize?: number;
+  fontSize?: number; // text
   startX?: number;
   startY?: number;
   endX?: number;
-  endY?: number;
+  endY?: number; // line
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
   rotation?: number;
+  opacity?: number; // optional but recommended (0..1)
   zIndex: number;
   createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | Timestamp;
+  updatedAt: Date | Timestamp;
   updatedBy: string;
+  version: number; // NEW: optimistic concurrency
+}
+
+// Shape with document ID for Firestore operations
+export interface StoredShapeWithId extends StoredShape {
+  id: string;
 }
 
 export interface CanvasSnapshot {
@@ -64,7 +72,10 @@ export interface UseCanvasReturn {
   isLoading: boolean;
   error: string | null;
   saveShape: (
-    shapeData: Omit<StoredShape, "id" | "createdAt" | "updatedAt" | "updatedBy">
+    shapeData: Omit<
+      StoredShape,
+      "id" | "createdAt" | "updatedAt" | "updatedBy" | "version"
+    >
   ) => Promise<string>;
   updateShape: (
     shapeId: string,
@@ -99,6 +110,7 @@ export interface CanvasViewport {
 
 export interface Shape {
   id: string;
+  canvasId: string;
   type: "rectangle" | "circle" | "text" | "line";
   x: number;
   y: number;
@@ -115,6 +127,7 @@ export interface Shape {
   stroke?: string;
   strokeWidth?: number;
   rotation?: number;
+  opacity?: number;
   zIndex?: number;
 }
 

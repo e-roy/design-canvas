@@ -1,7 +1,19 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false,
+    "presence": {
+      "$canvasId": {
+        ".read": "auth != null",
+        "$uid": { ".write": "$uid === auth.uid" }
+      }
+    },
+    "locks": {
+      "$canvasId": {
+        ".read": "auth != null",
+        "$shapeId": {
+          ".write": "(!data.exists() && newData.child('userId').val() === auth.uid) || (data.child('userId').val() === auth.uid)"
+        }
+      }
+    },
     "canvas_cursors": {
       "$canvasId": {
         ".read": "auth !== null",

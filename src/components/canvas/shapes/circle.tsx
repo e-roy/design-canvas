@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, memo } from "react";
 import { Circle } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Circle as KonvaCircle } from "konva/lib/shapes/Circle";
@@ -18,7 +18,7 @@ interface CircleProps {
   virtualHeight: number;
 }
 
-export function CircleShape({
+export const CircleShape = memo(function CircleShape({
   shape,
   isSelected,
   onSelect,
@@ -127,4 +127,4 @@ export function CircleShape({
       onTransformEnd={handleTransform}
     />
   );
-}
+});

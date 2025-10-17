@@ -1,19 +1,19 @@
 "use client";
 
-import React from "react";
-import { StoredShape } from "@/types";
+import React, { memo } from "react";
+import { StoredShapeWithId } from "@/types";
 import { Square, Circle, Type, Minus, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ObjectsListProps {
-  shapes: StoredShape[];
+  shapes: StoredShapeWithId[];
   selectedShapeIds: string[];
   onShapeSelect: (shapeId: string) => void;
   onShapeVisibilityToggle?: (shapeId: string, visible: boolean) => void;
   className?: string;
 }
 
-export function ObjectsList({
+export const ObjectsList = memo(function ObjectsList({
   shapes,
   selectedShapeIds,
   onShapeSelect,
@@ -39,7 +39,7 @@ export function ObjectsList({
     }
   };
 
-  const getShapeDisplayName = (shape: StoredShape, index: number) => {
+  const getShapeDisplayName = (shape: StoredShapeWithId, index: number) => {
     switch (shape.type) {
       case "text":
         return shape.text || `Text ${index + 1}`;
@@ -147,4 +147,4 @@ export function ObjectsList({
       </div>
     </div>
   );
-}
+});

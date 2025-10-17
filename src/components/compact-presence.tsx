@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { useCursorStore } from "@/store/cursor-store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -17,7 +17,7 @@ interface CompactPresenceProps {
   className?: string;
 }
 
-export function CompactPresence({
+export const CompactPresence = memo(function CompactPresence({
   projectId,
   maxUsers = 20,
   className,
@@ -72,4 +72,4 @@ export function CompactPresence({
       </div>
     </div>
   );
-}
+});

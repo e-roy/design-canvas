@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { canvasService } from "@/lib/canvas-service";
 import { useUserStore } from "./user-store";
-import { CanvasDocument, StoredShape, CanvasUserCursor } from "@/types";
+import { CanvasDocument, StoredShape, StoredShapeWithId } from "@/types";
 
 interface CanvasState {
   // Document state
@@ -10,10 +10,7 @@ interface CanvasState {
   documentId: string | null;
 
   // Shapes state
-  shapes: StoredShape[];
-
-  // User cursors state
-  userCursors: CanvasUserCursor[];
+  shapes: StoredShapeWithId[];
 
   // Loading and error states
   isLoading: boolean;
@@ -51,7 +48,10 @@ interface CanvasActions {
 
   // Shape management
   saveShape: (
-    shapeData: Omit<StoredShape, "id" | "createdAt" | "updatedAt" | "updatedBy">
+    shapeData: Omit<
+      StoredShape,
+      "id" | "createdAt" | "updatedAt" | "updatedBy" | "version"
+    >
   ) => Promise<string>;
   updateShape: (
     shapeId: string,
@@ -90,9 +90,8 @@ interface CanvasActions {
   // State updates (called by Firebase subscriptions)
   updateCanvasData: (data: {
     document: CanvasDocument;
-    shapes: StoredShape[];
+    shapes: StoredShapeWithId[];
   }) => void;
-  updateUserCursors: (cursors: CanvasUserCursor[]) => void;
 
   // Error handling
   setError: (error: string | null) => void;
@@ -112,7 +111,6 @@ const initialState: CanvasState = {
   canvasDocument: null,
   documentId: null,
   shapes: [],
-  userCursors: [],
   isLoading: false,
   error: null,
   viewport: { x: 1900, y: 2100, scale: 1 }, // Centered for 5000x5000 virtual canvas
@@ -365,10 +363,6 @@ export const useCanvasStore = create<CanvasStore>()(
       });
     },
 
-    updateUserCursors: (cursors) => {
-      set({ userCursors: cursors });
-    },
-
     // Error handling
     setError: (error) => set({ error }),
     clearError: () => set({ error: null }),
@@ -379,7 +373,6 @@ export const useCanvasStore = create<CanvasStore>()(
 
       // Cleanup existing subscriptions
       if (subscriptions.canvas) subscriptions.canvas();
-      if (subscriptions.cursors) subscriptions.cursors();
 
       // Subscribe to canvas changes
       const canvasUnsubscribe = canvasService.subscribeToCanvas(
@@ -389,18 +382,10 @@ export const useCanvasStore = create<CanvasStore>()(
         }
       );
 
-      // Subscribe to user cursors
-      const cursorsUnsubscribe = canvasService.subscribeToUserCursors(
-        documentId,
-        (cursors) => {
-          get().updateUserCursors(cursors);
-        }
-      );
-
       set({
         subscriptions: {
           canvas: canvasUnsubscribe,
-          cursors: cursorsUnsubscribe,
+          cursors: null,
         },
       });
     },
@@ -411,9 +396,6 @@ export const useCanvasStore = create<CanvasStore>()(
 
       if (subscriptions.canvas) {
         subscriptions.canvas();
-      }
-      if (subscriptions.cursors) {
-        subscriptions.cursors();
       }
 
       set({
@@ -436,8 +418,6 @@ export const useCanvasStore = create<CanvasStore>()(
 export const useCanvasDocument = () =>
   useCanvasStore((state) => state.canvasDocument);
 export const useCanvasShapes = () => useCanvasStore((state) => state.shapes);
-export const useCanvasUserCursors = () =>
-  useCanvasStore((state) => state.userCursors);
 export const useCanvasLoading = () =>
   useCanvasStore((state) => state.isLoading);
 export const useCanvasError = () => useCanvasStore((state) => state.error);
@@ -520,14 +500,12 @@ export const useCanvasActions = () => {
 export const useCanvasData = () => {
   const canvasDocument = useCanvasStore((state) => state.canvasDocument);
   const shapes = useCanvasStore((state) => state.shapes);
-  const userCursors = useCanvasStore((state) => state.userCursors);
   const isLoading = useCanvasStore((state) => state.isLoading);
   const error = useCanvasStore((state) => state.error);
 
   return {
     canvasDocument,
     shapes,
-    userCursors,
     isLoading,
     error,
   };

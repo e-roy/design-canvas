@@ -7,17 +7,16 @@ import {
   onSnapshot,
   query,
   where,
-  orderBy,
   serverTimestamp,
   getDoc,
   getDocs,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { CanvasDocument, StoredShape, CanvasUserCursor } from "@/types";
+import { CanvasDocument, StoredShape, StoredShapeWithId } from "@/types";
+import { updateShapeTx, updateShape } from "@/services/shapeTransactions";
 
 const CANVAS_DOCUMENTS_COLLECTION = "canvas_documents";
 const CANVAS_SHAPES_COLLECTION = "canvas_shapes";
-const USER_CURSORS_COLLECTION = "user_cursors";
 
 // Helper function to check if error is authentication-related
 const isAuthError = (error: unknown): boolean => {
@@ -63,7 +62,7 @@ export class CanvasService {
 
   async loadCanvas(
     documentId: string
-  ): Promise<{ document: CanvasDocument; shapes: StoredShape[] } | null> {
+  ): Promise<{ document: CanvasDocument; shapes: StoredShapeWithId[] } | null> {
     try {
       const docRef = doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId);
       const docSnap = await getDoc(docRef);
@@ -78,14 +77,17 @@ export class CanvasService {
       const shapesQuery = query(
         collection(db, CANVAS_SHAPES_COLLECTION),
         where("documentId", "==", documentId),
-        orderBy("zIndex", "asc")
+        where("canvasId", "==", "default") // Filter by canvasId for forward compatibility
       );
 
       const shapesSnap = await getDocs(shapesQuery);
       const shapes = shapesSnap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      })) as StoredShape[];
+      })) as StoredShapeWithId[];
+
+      // Sort by zIndex
+      shapes.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
       return { document, shapes };
     } catch (error) {
@@ -96,11 +98,13 @@ export class CanvasService {
 
   async saveShape(
     documentId: string,
-    shape: Omit<StoredShape, "id" | "createdAt" | "updatedAt" | "updatedBy">
+    shape: Omit<
+      StoredShape,
+      "id" | "createdAt" | "updatedAt" | "updatedBy" | "version"
+    >
   ): Promise<string> {
     try {
       const shapeId = this.generateId();
-      const now = new Date();
 
       // Filter out undefined values for Firestore
       const filteredShape = Object.fromEntries(
@@ -109,9 +113,10 @@ export class CanvasService {
 
       const storedShape: StoredShape = {
         ...filteredShape,
-        id: shapeId,
-        createdAt: now,
-        updatedAt: now,
+        canvasId: "default", // Set default canvasId for forward compatibility
+        version: 1, // Initial version
+        createdAt: new Date(),
+        updatedAt: new Date(),
         updatedBy: shape.createdBy,
       } as StoredShape;
 
@@ -166,16 +171,9 @@ export class CanvasService {
     updatedBy: string
   ): Promise<void> {
     try {
-      // Filter out undefined values for Firestore
-      const filteredUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([, value]) => value !== undefined)
-      );
-
-      await updateDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), {
-        ...filteredUpdates,
-        updatedAt: serverTimestamp(),
-        updatedBy,
-      });
+      // Use regular update for frequent operations (better performance)
+      // Transactions are used only for final commits and critical operations
+      await updateShape(shapeId, updates, updatedBy);
     } catch (error) {
       // Handle authentication errors gracefully
       if (isAuthError(error)) {
@@ -186,6 +184,48 @@ export class CanvasService {
         console.error("Error updating shape:", error);
         throw error;
       }
+    }
+  }
+
+  async updateShapeWithTransaction(
+    shapeId: string,
+    updates: Partial<
+      Pick<
+        StoredShape,
+        | "x"
+        | "y"
+        | "width"
+        | "height"
+        | "radius"
+        | "text"
+        | "fontSize"
+        | "startX"
+        | "startY"
+        | "endX"
+        | "endY"
+        | "fill"
+        | "stroke"
+        | "strokeWidth"
+        | "rotation"
+        | "zIndex"
+        | "canvasId"
+      >
+    >,
+    updatedBy: string
+  ): Promise<void> {
+    try {
+      // Use transaction for critical operations (final commits, important changes)
+      await updateShapeTx(shapeId, updates, updatedBy);
+    } catch (error) {
+      // Handle authentication errors gracefully
+      if (isAuthError(error)) {
+        console.warn(
+          "Cannot update shape: User not authenticated or insufficient permissions"
+        );
+        throw new Error("Authentication required to update shapes");
+      }
+      console.error(`Error updating shape ${shapeId}:`, error);
+      throw error;
     }
   }
 
@@ -311,13 +351,13 @@ export class CanvasService {
     documentId: string,
     onUpdate: (data: {
       document: CanvasDocument;
-      shapes: StoredShape[];
+      shapes: StoredShapeWithId[];
     }) => void
   ): () => void {
     let docUnsubscribe: (() => void) | null = null;
     let shapesUnsubscribe: (() => void) | null = null;
     let currentDocument: CanvasDocument | null = null;
-    let currentShapes: StoredShape[] | null = null;
+    let currentShapes: StoredShapeWithId[] | null = null;
 
     // Helper function to call onUpdate with current data
     const notifyUpdate = () => {
@@ -345,14 +385,17 @@ export class CanvasService {
           const shapesQuery = query(
             collection(db, CANVAS_SHAPES_COLLECTION),
             where("documentId", "==", documentId),
-            orderBy("zIndex", "asc")
+            where("canvasId", "==", "default") // Filter by canvasId for forward compatibility
           );
 
           const shapesSnap = await getDocs(shapesQuery);
           currentShapes = shapesSnap.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
-          })) as StoredShape[];
+          })) as StoredShapeWithId[];
+
+          // Sort by zIndex
+          currentShapes.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
           // Notify initial state
           notifyUpdate();
@@ -376,7 +419,10 @@ export class CanvasService {
             currentShapes = snapshot.docs.map((doc) => ({
               id: doc.id,
               ...doc.data(),
-            })) as StoredShape[];
+            })) as StoredShapeWithId[];
+
+            // Sort by zIndex
+            currentShapes.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
             notifyUpdate();
           });
@@ -403,75 +449,6 @@ export class CanvasService {
       if (shapesUnsubscribe) shapesUnsubscribe();
       this.listeners.delete(`canvas-${documentId}`);
     };
-  }
-
-  subscribeToUserCursors(
-    documentId: string,
-    onUpdate: (cursors: CanvasUserCursor[]) => void
-  ): () => void {
-    // Check if user is authenticated before proceeding
-    if (!auth.currentUser) {
-      console.warn("Cannot subscribe to user cursors: User not authenticated");
-      return () => {}; // Return empty cleanup function
-    }
-
-    const cursorsQuery = query(
-      collection(db, USER_CURSORS_COLLECTION),
-      where("documentId", "==", documentId)
-    );
-
-    const unsubscribe = onSnapshot(
-      cursorsQuery,
-      (snapshot) => {
-        const cursors = snapshot.docs.map((doc) => ({
-          userId: doc.id,
-          ...doc.data(),
-        })) as CanvasUserCursor[];
-
-        onUpdate(cursors);
-      },
-      (error) => {
-        // Handle authentication errors gracefully
-        if (isAuthError(error)) {
-          console.warn(
-            "Cannot access user cursors: User not authenticated or insufficient permissions"
-          );
-        } else {
-          console.error("Error subscribing to user cursors:", error);
-        }
-      }
-    );
-
-    this.listeners.set(`cursors-${documentId}`, unsubscribe);
-    return unsubscribe;
-  }
-
-  async updateUserCursor(
-    documentId: string,
-    userId: string,
-    userName: string,
-    x: number,
-    y: number
-  ): Promise<void> {
-    try {
-      await setDoc(doc(db, USER_CURSORS_COLLECTION, userId), {
-        documentId,
-        userName,
-        x,
-        y,
-        timestamp: serverTimestamp(),
-      });
-    } catch (error) {
-      // Handle authentication errors gracefully
-      if (isAuthError(error)) {
-        console.warn(
-          "Cannot update user cursor: User not authenticated or insufficient permissions"
-        );
-      } else {
-        console.error("Error updating user cursor:", error);
-        throw error;
-      }
-    }
   }
 
   unsubscribeAll(): void {

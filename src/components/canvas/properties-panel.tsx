@@ -1,27 +1,29 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { StoredShape } from "@/types";
+import { StoredShapeWithId } from "@/types";
 import { Trash2, Square, Circle, Type, Minus } from "lucide-react";
 
 interface PropertiesPanelProps {
-  selectedShape: StoredShape | null;
-  onShapeUpdate: (shapeId: string, updates: Partial<StoredShape>) => void;
+  selectedShape: StoredShapeWithId | null;
+  onShapeUpdate: (shapeId: string, updates: Partial<StoredShapeWithId>) => void;
   onShapeDelete: (shapeId: string) => void;
 }
 
-export function PropertiesPanel({
+export const PropertiesPanel = memo(function PropertiesPanel({
   selectedShape,
   onShapeUpdate,
   onShapeDelete,
 }: PropertiesPanelProps) {
   // Local state for input values to prevent conflicts with rapid typing
-  const [localValues, setLocalValues] = useState<Partial<StoredShape>>({});
+  const [localValues, setLocalValues] = useState<Partial<StoredShapeWithId>>(
+    {}
+  );
   const updateTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
 
   // Update local values when selectedShape changes
@@ -35,7 +37,7 @@ export function PropertiesPanel({
 
   // Debounced update function
   const debouncedUpdate = useCallback(
-    (property: keyof StoredShape, value: string | number) => {
+    (property: keyof StoredShapeWithId, value: string | number) => {
       if (!selectedShape) return;
 
       // Clear existing timeout for this property
@@ -420,4 +422,4 @@ export function PropertiesPanel({
       </Card>
     </div>
   );
-}
+});

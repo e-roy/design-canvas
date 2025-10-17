@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,7 +25,10 @@ interface ToolbarProps {
   ) => void;
 }
 
-export function Toolbar({ currentTool, onToolChange }: ToolbarProps) {
+export const Toolbar = memo(function Toolbar({
+  currentTool,
+  onToolChange,
+}: ToolbarProps) {
   const getSelectPanIcon = () => {
     // Show the current tool icon, default to select if neither is active
     if (currentTool === "pan") {
@@ -167,4 +170,4 @@ export function Toolbar({ currentTool, onToolChange }: ToolbarProps) {
       </div>
     </div>
   );
-}
+});

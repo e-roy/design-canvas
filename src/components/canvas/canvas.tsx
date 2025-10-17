@@ -24,6 +24,9 @@ import {
   useSelectedShapeIds,
   useCanvasActions,
 } from "@/store/canvas-store";
+import { useUserStore } from "@/store/user-store";
+import { usePresence } from "@/hooks/usePresence";
+import { updateShape } from "@/services/shapeTransactions";
 
 // Canvas constants
 const VIRTUAL_WIDTH = 5000;
@@ -67,6 +70,122 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   const { setCurrentTool, setViewport, setSelectedShapeIds } =
     useCanvasActions();
 
+  // Get user information for presence
+  const { user } = useUserStore();
+
+  // Memoize presence object to prevent unnecessary re-renders
+  const presenceConfig = useMemo(
+    () => ({
+      uid: user?.uid || "anonymous",
+      name: user?.displayName || user?.email || "Anonymous",
+      color: "#3b82f6", // Default blue color
+    }),
+    [user?.uid, user?.displayName, user?.email]
+  );
+
+  // Initialize presence system
+  const presence = usePresence("default", presenceConfig);
+
+  // Subscribe to peer presence for ghost rendering
+  const [peerPresence, setPeerPresence] = useState<
+    Record<
+      string,
+      {
+        name: string;
+        color: string;
+        cursor: { x: number; y: number };
+        selection: string[];
+        gesture: {
+          type: string;
+          shapeId: string;
+          draft: Record<string, unknown>;
+        } | null;
+        lastSeen: number;
+      }
+    >
+  >({});
+
+  useEffect(() => {
+    const unsubscribe = presence.subscribePeers((peers) => {
+      setPeerPresence(
+        peers as Record<
+          string,
+          {
+            name: string;
+            color: string;
+            cursor: { x: number; y: number };
+            selection: string[];
+            gesture: {
+              type: string;
+              shapeId: string;
+              draft: Record<string, unknown>;
+            } | null;
+            lastSeen: number;
+          }
+        >
+      );
+    });
+    return unsubscribe;
+  }, [presence]);
+
+  // Throttled commit function for shape updates
+  const commitThrottled = useMemo(() => {
+    let lastCall = 0;
+    let timeout: NodeJS.Timeout | null = null;
+    let pendingUpdate: { shapeId: string; patch: Partial<Shape> } | null = null;
+
+    return (shapeId: string, patch: Partial<Shape>) => {
+      // Store the latest update
+      pendingUpdate = { shapeId, patch };
+
+      const now = Date.now();
+      const remaining = 100 - (now - lastCall); // Reduced to 100ms for better responsiveness
+
+      if (remaining <= 0) {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        lastCall = now;
+        if (user?.uid && onShapeUpdate && pendingUpdate) {
+          // Use regular update for throttled drag updates (better performance)
+          // Only use transactions for final commits and important operations
+          updateShape(
+            pendingUpdate.shapeId,
+            pendingUpdate.patch,
+            user.uid
+          ).catch((error: unknown) => {
+            console.warn(
+              `Failed to update shape ${pendingUpdate?.shapeId}:`,
+              error instanceof Error ? error.message : String(error)
+            );
+          });
+          pendingUpdate = null;
+        }
+      } else if (!timeout) {
+        timeout = setTimeout(() => {
+          lastCall = Date.now();
+          timeout = null;
+          if (user?.uid && onShapeUpdate && pendingUpdate) {
+            // Use regular update for throttled drag updates (better performance)
+            // Only use transactions for final commits and important operations
+            updateShape(
+              pendingUpdate.shapeId,
+              pendingUpdate.patch,
+              user.uid
+            ).catch((error: unknown) => {
+              console.warn(
+                `Failed to update shape ${pendingUpdate?.shapeId}:`,
+                error instanceof Error ? error.message : String(error)
+              );
+            });
+            pendingUpdate = null;
+          }
+        }, remaining);
+      }
+    };
+  }, [user?.uid, onShapeUpdate]);
+
   // Local drag state for smooth dragging (not persisted to store)
   const [localDragState, setLocalDragState] = useState<
     Record<string, { x: number; y: number }>
@@ -84,20 +203,56 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   );
 
   // Use external shapes if provided, otherwise use empty array
-  // Apply local drag positions for smooth dragging
+  // Memoize ghost shapes to prevent unnecessary re-creation
+  const ghostShapes = useMemo(() => {
+    const ghosts: Shape[] = [];
+    Object.entries(peerPresence).forEach(([peerId, peer]) => {
+      if (peerId === user?.uid || !peer.gesture) return;
+
+      const gesture = peer.gesture;
+      if (gesture.type === "move" && gesture.shapeId && gesture.draft) {
+        // Find the original shape to create a ghost
+        const originalShape = externalShapes.find(
+          (s) => s.id === gesture.shapeId
+        );
+        if (originalShape) {
+          ghosts.push({
+            ...originalShape,
+            id: `ghost-${peerId}-${gesture.shapeId}`,
+            x: (gesture.draft.x as number) || originalShape.x,
+            y: (gesture.draft.y as number) || originalShape.y,
+            width: (gesture.draft.width as number) || originalShape.width,
+            height: (gesture.draft.height as number) || originalShape.height,
+            rotation:
+              (gesture.draft.rotation as number) || originalShape.rotation,
+            // Make ghost visually distinct
+            fill: "transparent",
+            stroke: peer.color || "#3b82f6",
+            strokeWidth: 2,
+            opacity: 0.5,
+          });
+        }
+      }
+    });
+    return ghosts;
+  }, [peerPresence, externalShapes, user?.uid]);
+
+  // Apply local drag positions and combine with ghost shapes
   const shapes = useMemo(() => {
     if (!externalShapes || externalShapes.length === 0) {
-      return [];
+      return ghostShapes;
     }
 
-    return externalShapes.map((shape) => {
+    const baseShapes = externalShapes.map((shape) => {
       const localDrag = localDragState[shape.id];
       if (localDrag) {
         return { ...shape, x: localDrag.x, y: localDrag.y };
       }
       return shape;
     });
-  }, [externalShapes, localDragState]);
+
+    return [...baseShapes, ...ghostShapes];
+  }, [externalShapes, localDragState, ghostShapes]);
 
   // Monitor Firebase updates to clear local drag state when confirmed
   useEffect(() => {
@@ -117,8 +272,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         if (xMatch && yMatch) {
           // Firebase update confirmed, clear local state
           setLocalDragState((prev) => {
-            const { [shapeId]: removed, ...remaining } = prev;
-            return remaining;
+            const newState = { ...prev };
+            delete newState[shapeId];
+            return newState;
           });
           pendingDragEnds.current.delete(shapeId);
         }
@@ -170,18 +326,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     [width, height, virtualWidth, virtualHeight]
   );
 
-  // Shape management functions
   const handleShapeSelect = useCallback(
     (id: string) => {
       if (currentTool === "select") {
         setSelectedShapeIds([id]);
+        // Update presence selection
+        presence.updateSelection([id]);
       }
     },
-    [currentTool, setSelectedShapeIds]
+    [currentTool, setSelectedShapeIds, presence]
   );
-
-  // Debounce timer for shape updates
-  const updateTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
   // Track active dragging shapes for more frequent updates
   const activeDraggingShapes = useRef<Set<string>>(new Set());
@@ -195,9 +349,28 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       // Mark as actively dragging for more frequent updates
       activeDraggingShapes.current.add(id);
+
+      // Update presence gesture
+      const shape = shapes.find((s) => s.id === id);
+      if (shape) {
+        presence.updateGesture({
+          type: "move",
+          shapeId: id,
+          draft: {
+            x: shape.x,
+            y: shape.y,
+            width: shape.width || 100,
+            height: shape.height || 100,
+            rotation: shape.rotation || 0,
+          },
+        });
+      }
     },
-    [onShapeUpdate]
+    [onShapeUpdate, shapes, presence]
   );
+
+  // Throttle RTDB updates to 30 FPS for better performance
+  const rtdbUpdateRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   const handleShapeDragMove = useCallback(
     (id: string, x: number, y: number) => {
@@ -207,48 +380,64 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         [id]: { x, y },
       }));
 
-      // Clear existing timer for this shape
-      if (updateTimers.current[id]) {
-        clearTimeout(updateTimers.current[id]);
-        delete updateTimers.current[id];
+      // Throttle RTDB updates to 30 FPS (33ms intervals)
+      if (rtdbUpdateRef.current[id]) {
+        clearTimeout(rtdbUpdateRef.current[id]);
       }
 
-      // Use very minimal debouncing for ultra-smooth movement
-      const isActivelyDragging = activeDraggingShapes.current.has(id);
-
-      // For active dragging, send immediate updates with no backup timer
-      if (isActivelyDragging) {
-        // Send immediate update for active dragging - no delays
-        if (onShapeUpdate) {
-          onShapeUpdate(id, { x, y });
+      rtdbUpdateRef.current[id] = setTimeout(() => {
+        const shape = shapes.find((s) => s.id === id);
+        if (shape) {
+          presence.updateGesture({
+            type: "move",
+            shapeId: id,
+            draft: {
+              x,
+              y,
+              width: shape.width || 100,
+              height: shape.height || 100,
+              rotation: shape.rotation || 0,
+            },
+          });
         }
-      } else {
-        // For non-active dragging, use minimal debouncing
-        updateTimers.current[id] = setTimeout(() => {
-          if (onShapeUpdate) {
-            onShapeUpdate(id, { x, y });
-          }
-          delete updateTimers.current[id];
-        }, 2); // Reduced to 2ms for non-active dragging
-      }
+        delete rtdbUpdateRef.current[id];
+      }, 33); // ~30 FPS
+
+      // Use throttled commit for Firestore updates
+      commitThrottled(id, { x, y });
     },
-    [onShapeUpdate]
+    [shapes, presence, commitThrottled]
   );
 
   const handleShapeDragEnd = useCallback(
     (id: string, finalX?: number, finalY?: number) => {
-      // Clear any pending timer
-      if (updateTimers.current[id]) {
-        clearTimeout(updateTimers.current[id]);
-        delete updateTimers.current[id];
-      }
-
       // Remove from active dragging set
       activeDraggingShapes.current.delete(id);
 
+      // Clear any pending RTDB updates
+      if (rtdbUpdateRef.current[id]) {
+        clearTimeout(rtdbUpdateRef.current[id]);
+        delete rtdbUpdateRef.current[id];
+      }
+
+      // Clear presence gesture
+      presence.updateGesture(null);
+
       // Final Firebase update with actual position from Konva
-      if (onShapeUpdate && finalX !== undefined && finalY !== undefined) {
-        onShapeUpdate(id, { x: finalX, y: finalY });
+      if (finalX !== undefined && finalY !== undefined) {
+        // Add a small delay to ensure any pending throttled updates complete first
+        setTimeout(() => {
+          if (user?.uid) {
+            updateShape(id, { x: finalX, y: finalY }, user.uid).catch(
+              (error) => {
+                console.warn(
+                  `Failed to finalize shape ${id} position:`,
+                  error instanceof Error ? error.message : String(error)
+                );
+              }
+            );
+          }
+        }, 50); // Reduced delay for faster final positioning
 
         // Mark this shape as having a pending drag end
         // Local state will be cleared when Firebase update is confirmed
@@ -256,12 +445,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       } else {
         // If no final position, clear immediately
         setLocalDragState((prev) => {
-          const { [id]: removed, ...remaining } = prev;
-          return remaining;
+          const newState = { ...prev };
+          delete newState[id];
+          return newState;
         });
       }
     },
-    [onShapeUpdate]
+    [presence, user?.uid]
   );
 
   const handleShapeChange = useCallback(
@@ -271,6 +461,88 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       }
     },
     [onShapeUpdate]
+  );
+
+  // Memoized shape renderer to prevent unnecessary re-renders
+  const renderShape = useCallback(
+    (shape: Shape) => {
+      const isSelected = selectedShapeIds.includes(shape.id);
+
+      switch (shape.type) {
+        case "rectangle":
+          return (
+            <RectangleShape
+              key={shape.id}
+              shape={shape}
+              isSelected={isSelected}
+              onSelect={handleShapeSelect}
+              onDragStart={handleShapeDragStart}
+              onDragMove={handleShapeDragMove}
+              onDragEnd={handleShapeDragEnd}
+              onShapeChange={handleShapeChange}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+            />
+          );
+        case "circle":
+          return (
+            <CircleShape
+              key={shape.id}
+              shape={shape}
+              isSelected={isSelected}
+              onSelect={handleShapeSelect}
+              onDragStart={handleShapeDragStart}
+              onDragMove={handleShapeDragMove}
+              onDragEnd={handleShapeDragEnd}
+              onShapeChange={handleShapeChange}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+            />
+          );
+        case "text":
+          return (
+            <TextShape
+              key={shape.id}
+              shape={shape}
+              isSelected={isSelected}
+              onSelect={handleShapeSelect}
+              onDragStart={handleShapeDragStart}
+              onDragMove={handleShapeDragMove}
+              onDragEnd={handleShapeDragEnd}
+              onShapeChange={handleShapeChange}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+            />
+          );
+        case "line":
+          return (
+            <LineShape
+              key={shape.id}
+              shape={shape}
+              isSelected={isSelected}
+              onSelect={handleShapeSelect}
+              onDragStart={handleShapeDragStart}
+              onDragMove={handleShapeDragMove}
+              onDragEnd={handleShapeDragEnd}
+              onShapeChange={handleShapeChange}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+            />
+          );
+        default:
+          return null;
+      }
+    },
+    [
+      selectedShapeIds,
+      handleShapeSelect,
+      handleShapeDragStart,
+      handleShapeDragMove,
+      handleShapeDragEnd,
+      handleShapeChange,
+      virtualWidth,
+      virtualHeight,
+    ]
   );
 
   const handleCreateShape = useCallback(
@@ -318,6 +590,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       const newShape: Shape = {
         id: generateId(),
+        canvasId: "default", // Add canvasId for forward compatibility
         type,
         x: constrainedX,
         y: constrainedY,
@@ -328,6 +601,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         fill: "#ffffff",
         stroke: "#000000",
         strokeWidth: 1,
+        zIndex: Date.now(), // Add zIndex for proper stacking
       };
 
       setIsCreatingShape(false);
@@ -392,6 +666,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     // Create preview shape (for rectangle, circle, and line)
     const preview: Shape = {
       id: "preview",
+      canvasId: "default", // Add canvasId for forward compatibility
       type: currentTool,
       x: constrainedPoint.x,
       y: constrainedPoint.y,
@@ -406,6 +681,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       fill: "#ffffff",
       stroke: "#3b82f6",
       strokeWidth: 2,
+      zIndex: Date.now(), // Add zIndex for proper stacking
     };
 
     setPreviewShape(preview);
@@ -446,9 +722,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         timestamp: Date.now(),
       };
 
+      // Update presence cursor
+      presence.updateCursor(virtualPosition.x, virtualPosition.y);
+
       onMouseMove(virtualPosition);
     },
-    [onMouseMove, viewport]
+    [onMouseMove, viewport, presence]
   );
 
   // Global mouse leave handler to clear cursor when leaving canvas
@@ -916,74 +1195,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             )}
 
             {/* Shapes */}
-            {shapes.map((shape) => {
-              const isSelected = selectedShapeIds.includes(shape.id);
-
-              switch (shape.type) {
-                case "rectangle":
-                  return (
-                    <RectangleShape
-                      key={shape.id}
-                      shape={shape}
-                      isSelected={isSelected}
-                      onSelect={handleShapeSelect}
-                      onDragStart={handleShapeDragStart}
-                      onDragMove={handleShapeDragMove}
-                      onDragEnd={handleShapeDragEnd}
-                      onShapeChange={handleShapeChange}
-                      virtualWidth={virtualWidth}
-                      virtualHeight={virtualHeight}
-                    />
-                  );
-                case "circle":
-                  return (
-                    <CircleShape
-                      key={shape.id}
-                      shape={shape}
-                      isSelected={isSelected}
-                      onSelect={handleShapeSelect}
-                      onDragStart={handleShapeDragStart}
-                      onDragMove={handleShapeDragMove}
-                      onDragEnd={handleShapeDragEnd}
-                      onShapeChange={handleShapeChange}
-                      virtualWidth={virtualWidth}
-                      virtualHeight={virtualHeight}
-                    />
-                  );
-                case "text":
-                  return (
-                    <TextShape
-                      key={shape.id}
-                      shape={shape}
-                      isSelected={isSelected}
-                      onSelect={handleShapeSelect}
-                      onDragStart={handleShapeDragStart}
-                      onDragMove={handleShapeDragMove}
-                      onDragEnd={handleShapeDragEnd}
-                      onShapeChange={handleShapeChange}
-                      virtualWidth={virtualWidth}
-                      virtualHeight={virtualHeight}
-                    />
-                  );
-                case "line":
-                  return (
-                    <LineShape
-                      key={shape.id}
-                      shape={shape}
-                      isSelected={isSelected}
-                      onSelect={handleShapeSelect}
-                      onDragStart={handleShapeDragStart}
-                      onDragMove={handleShapeDragMove}
-                      onDragEnd={handleShapeDragEnd}
-                      onShapeChange={handleShapeChange}
-                      virtualWidth={virtualWidth}
-                      virtualHeight={virtualHeight}
-                    />
-                  );
-                default:
-                  return null;
-              }
-            })}
+            {shapes.map(renderShape)}
           </Viewport>
         </Layer>
       </Stage>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, memo } from "react";
 import { Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Text as KonvaText } from "konva/lib/shapes/Text";
@@ -18,7 +18,7 @@ interface TextProps {
   virtualHeight: number;
 }
 
-export function TextShape({
+export const TextShape = memo(function TextShape({
   shape,
   isSelected,
   onSelect,
@@ -129,4 +129,4 @@ export function TextShape({
       />
     </>
   );
-}
+});

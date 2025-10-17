@@ -43,7 +43,7 @@ export default function CanvasPage() {
   const { user } = useUserStore();
   const { setCursors } = useCursorStore();
 
-  // Sidebar state management
+  // Sidebar state management - memoized to prevent unnecessary re-renders
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
 
@@ -215,11 +215,21 @@ export default function CanvasPage() {
     [setSelectedShapeIds]
   );
 
+  // Memoized sidebar toggle handlers
+  const handleLeftSidebarToggle = useCallback(() => {
+    setLeftSidebarOpen((prev) => !prev);
+  }, []);
+
+  const handleRightSidebarToggle = useCallback(() => {
+    setRightSidebarOpen((prev) => !prev);
+  }, []);
+
   // Memoized canvas shapes conversion
   const canvasShapes: Shape[] = useMemo(
     () =>
       shapes.map((storedShape) => ({
         id: storedShape.id,
+        canvasId: storedShape.canvasId,
         type: storedShape.type,
         x: storedShape.x,
         y: storedShape.y,
@@ -239,7 +249,9 @@ export default function CanvasPage() {
 
   const handleShapeCreate = useCallback(
     async (shape: Shape) => {
-      if (!canvasDocument || !user) return;
+      if (!canvasDocument || !user) {
+        return;
+      }
 
       try {
         // Filter out undefined values for Firestore
@@ -343,7 +355,6 @@ export default function CanvasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
-      {/* Left Sidebar */}
       <SidebarProvider open={leftSidebarOpen} onOpenChange={setLeftSidebarOpen}>
         <Sidebar side="left" className="border-r">
           <SidebarHeader className="border-b">
@@ -424,12 +435,12 @@ export default function CanvasPage() {
       {/* Custom Sidebar Triggers */}
       <CustomSidebarTrigger
         side="left"
-        onToggle={() => setLeftSidebarOpen(!leftSidebarOpen)}
+        onToggle={handleLeftSidebarToggle}
         isOpen={leftSidebarOpen}
       />
       <CustomSidebarTrigger
         side="right"
-        onToggle={() => setRightSidebarOpen(!rightSidebarOpen)}
+        onToggle={handleRightSidebarToggle}
         isOpen={rightSidebarOpen}
       />
     </div>

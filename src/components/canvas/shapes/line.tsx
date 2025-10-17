@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, memo } from "react";
 import { Line } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Line as KonvaLine } from "konva/lib/shapes/Line";
@@ -18,7 +18,7 @@ interface LineProps {
   virtualHeight: number;
 }
 
-export function LineShape({
+export const LineShape = memo(function LineShape({
   shape,
   isSelected,
   onSelect,
@@ -140,4 +140,4 @@ export function LineShape({
       onTransformEnd={handleTransform}
     />
   );
-}
+});

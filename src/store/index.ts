@@ -5,7 +5,6 @@ export {
   useCanvasStore,
   useCanvasDocument,
   useCanvasShapes,
-  useCanvasUserCursors,
   useCanvasLoading,
   useCanvasError,
   useCanvasViewport,

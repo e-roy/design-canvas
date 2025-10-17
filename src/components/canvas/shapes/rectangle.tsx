@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, memo } from "react";
 import { Rect } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Rect as KonvaRect } from "konva/lib/shapes/Rect";
@@ -18,7 +18,7 @@ interface RectangleProps {
   virtualHeight: number;
 }
 
-export function RectangleShape({
+export const RectangleShape = memo(function RectangleShape({
   shape,
   isSelected,
   onSelect,
@@ -135,4 +135,4 @@ export function RectangleShape({
       onTransformEnd={handleTransform}
     />
   );
-}
+});
