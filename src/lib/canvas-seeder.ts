@@ -1,5 +1,4 @@
 import { canvasService } from "@/lib/canvas-service";
-import { CanvasDocument } from "@/types";
 
 export interface CanvasSeedData {
   name: string;

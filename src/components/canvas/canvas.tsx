@@ -157,7 +157,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       // Filter out stale peer data (older than 10 seconds)
       Object.entries(peers).forEach(([peerId, peer]) => {
         if (peer && peer.lastSeen && now - peer.lastSeen < 10000) {
-          cleanedPeers[peerId] = peer as any;
+          cleanedPeers[peerId] = {
+            ...peer,
+            gesture: peer.gesture as {
+              type: string;
+              shapeId: string;
+              draft: Record<string, unknown>;
+            } | null,
+          };
         }
       });
 
