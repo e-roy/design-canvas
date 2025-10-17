@@ -35,7 +35,21 @@ export const PropertiesPanel = memo(function PropertiesPanel({
     }
   }, [selectedShape]);
 
-  // Debounced update function
+  // Immediate update for text content to prevent character loss
+  const immediateUpdate = useCallback(
+    (property: keyof StoredShapeWithId, value: string | number) => {
+      if (!selectedShape) return;
+
+      // Update local state immediately for responsive UI
+      setLocalValues((prev) => ({ ...prev, [property]: value }));
+
+      // Update immediately for text content to prevent character loss
+      onShapeUpdate(selectedShape.id, { [property]: value });
+    },
+    [selectedShape, onShapeUpdate]
+  );
+
+  // Debounced update function for non-text properties
   const debouncedUpdate = useCallback(
     (property: keyof StoredShapeWithId, value: string | number) => {
       if (!selectedShape) return;
@@ -52,7 +66,7 @@ export const PropertiesPanel = memo(function PropertiesPanel({
       updateTimeouts.current[property] = setTimeout(() => {
         onShapeUpdate(selectedShape.id, { [property]: value });
         delete updateTimeouts.current[property];
-      }, 300); // 300ms debounce
+      }, 100); // 100ms debounce for better typing responsiveness
     },
     [selectedShape, onShapeUpdate]
   );
@@ -286,7 +300,7 @@ export const PropertiesPanel = memo(function PropertiesPanel({
               </Label>
               <Input
                 value={localValues.text || ""}
-                onChange={(e) => debouncedUpdate("text", e.target.value)}
+                onChange={(e) => immediateUpdate("text", e.target.value)}
                 className="h-8 text-xs"
                 placeholder="Enter text..."
               />

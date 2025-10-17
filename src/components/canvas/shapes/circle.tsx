@@ -51,11 +51,10 @@ export const CircleShape = memo(function CircleShape({
     let newY = circle.y();
 
     // Constrain to canvas boundaries (accounting for radius)
-    newX = Math.max(0, Math.min(virtualWidth - (shape.radius || 50) * 2, newX));
-    newY = Math.max(
-      0,
-      Math.min(virtualHeight - (shape.radius || 50) * 2, newY)
-    );
+    // Circle position is the center, so we need radius on each side
+    const radius = shape.radius || 50;
+    newX = Math.max(radius, Math.min(virtualWidth - radius, newX));
+    newY = Math.max(radius, Math.min(virtualHeight - radius, newY));
 
     // Update position
     circle.position({ x: newX, y: newY });

@@ -1,13 +1,6 @@
-import {
-  ref,
-  set,
-  onValue,
-  onDisconnect,
-  serverTimestamp,
-} from "firebase/database";
+import { ref, set, update, onValue, onDisconnect } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
 import {
-  UserCursor,
   CursorPosition,
   CanvasCursorState,
   generateUserColor,
@@ -23,15 +16,24 @@ export class CursorManager {
   private userColor: string = "";
   private updateInterval: NodeJS.Timeout | null = null;
   private lastPosition: CursorPosition | null = null;
+  private lastUpdateTime: number = 0;
+  private debounceTimeout: NodeJS.Timeout | null = null;
   private listeners: Map<string, () => void> = new Map();
   private config: CursorConfig;
+
+  // Throttling system similar to shape updates
+  private lastCall: number = 0;
+  private timeout: NodeJS.Timeout | null = null;
+  private pendingUpdate: CursorPosition | null = null;
 
   constructor(canvasId: string, config?: Partial<CursorConfig>) {
     this.canvasId = canvasId;
     this.config = {
-      updateInterval: 4, // Update every 4ms for ultra-smooth responsiveness
+      updateInterval: 50, // Simple 50ms interval for consistent updates
       cleanupThreshold: 10000, // Remove cursors after 10 seconds of inactivity
       maxCursors: 50,
+      positionThreshold: 0, // Not used anymore - simple time-based throttling
+      debounceDelay: 0, // Not used anymore
       ...config,
     };
   }
@@ -57,6 +59,22 @@ export class CursorManager {
     const userCursorRef = ref(realtimeDb, this.getCursorPath(user.uid));
     onDisconnect(userCursorRef).remove();
 
+    // Initialize cursor with all required fields for efficient updates
+    const initialCursor = {
+      userId: user.uid,
+      displayName: user.displayName || "Anonymous",
+      color: this.userColor,
+      photoURL: user.photoURL,
+      currentProject: this.canvasId,
+      x: 0,
+      y: 0,
+      timestamp: Date.now(),
+      lastSeen: Date.now(),
+      isOnline: true,
+    };
+
+    await set(userCursorRef, initialCursor);
+
     // Start position tracking
     this.startTracking();
   }
@@ -66,13 +84,14 @@ export class CursorManager {
       clearInterval(this.updateInterval);
     }
 
-    this.updateInterval = setInterval(() => {
-      // This will be called by the canvas component with actual mouse position
-      // For now, we'll just update the timestamp if we have a recent position
-      if (this.lastPosition && this.currentUser) {
-        this.updateCursorPosition(this.lastPosition);
-      }
-    }, this.config.updateInterval);
+    // Disabled automatic interval updates - only update on actual mouse movement
+    // this.updateInterval = setInterval(() => {
+    //   // This will be called by the canvas component with actual mouse position
+    //   // For now, we'll just update the timestamp if we have a recent position
+    //   if (this.lastPosition && this.currentUser) {
+    //     this.updateCursorPosition(this.lastPosition);
+    //   }
+    // }, this.config.updateInterval);
   }
 
   updateCursorPosition(position: CursorPosition): void {
@@ -93,41 +112,55 @@ export class CursorManager {
       return;
     }
 
-    // Only throttle if the position hasn't changed significantly
-    if (
-      this.lastPosition &&
-      Math.abs(this.lastPosition.x - position.x) < 0.5 &&
-      Math.abs(this.lastPosition.y - position.y) < 0.5 &&
-      Date.now() - this.lastPosition.timestamp < this.config.updateInterval
-    ) {
-      return;
+    // Store the latest update (similar to shape throttling)
+    this.pendingUpdate = position;
+
+    const now = Date.now();
+    const remaining = 100 - (now - this.lastCall); // 100ms throttling like shapes
+
+    if (remaining <= 0) {
+      if (this.timeout) {
+        clearTimeout(this.timeout);
+        this.timeout = null;
+      }
+      this.lastCall = now;
+      this.performCursorUpdate();
+    } else if (!this.timeout) {
+      this.timeout = setTimeout(() => {
+        this.lastCall = Date.now();
+        this.timeout = null;
+        this.performCursorUpdate();
+      }, remaining);
     }
+  }
+
+  private performCursorUpdate(): void {
+    if (!this.currentUser || !this.pendingUpdate) return;
+
+    const position = this.pendingUpdate;
+    const timestamp = Date.now();
 
     this.lastPosition = {
       ...position,
-      timestamp: Date.now(),
-    };
-
-    const userCursor: UserCursor = {
-      userId: this.currentUser.uid,
-      displayName: this.currentUser.displayName || "Anonymous",
-      color: this.userColor,
-      photoURL: this.currentUser.photoURL,
-      currentProject: this.canvasId,
-      x: this.lastPosition.x,
-      y: this.lastPosition.y,
-      timestamp: this.lastPosition.timestamp,
-      isOnline: true,
+      timestamp,
     };
 
     const cursorRef = ref(realtimeDb, this.getCursorPath(this.currentUser.uid));
 
-    set(cursorRef, {
-      ...userCursor,
-      timestamp: serverTimestamp(),
-    }).catch((error) => {
+    // Minimal payload for fastest writes - only essential position data
+    const updateData = {
+      x: Math.round(position.x * 100) / 100, // Round to 2 decimal places
+      y: Math.round(position.y * 100) / 100, // Round to 2 decimal places
+      t: timestamp, // Shortened field name
+    };
+
+    // Use update to only modify position fields, preserving user metadata
+    update(cursorRef, updateData).catch((error) => {
       console.error("Error updating cursor position:", error);
     });
+
+    // Clear pending update
+    this.pendingUpdate = null;
   }
 
   subscribeToCanvasCursors(
@@ -182,7 +215,7 @@ export class CursorManager {
                   ? cursorTimestamp
                   : 0;
             } else {
-              // New format with flat properties
+              // New optimized format with minimal fields
               const cursor = cursorData as {
                 displayName?: string;
                 color?: string;
@@ -190,6 +223,7 @@ export class CursorManager {
                 currentProject?: string | null;
                 x?: number;
                 y?: number;
+                t?: number; // Shortened timestamp field
                 timestamp?: number | { toMillis?: () => number };
               };
               x = cursor.x || 0;
@@ -199,8 +233,8 @@ export class CursorManager {
               photoURL = cursor.photoURL || null;
               currentProject = cursor.currentProject || null;
 
-              // Handle timestamp
-              const cursorTimestamp = cursor.timestamp || 0;
+              // Handle timestamp - check both 't' and 'timestamp' fields
+              const cursorTimestamp = cursor.t || cursor.timestamp || 0;
               timestamp =
                 typeof cursorTimestamp === "object" && cursorTimestamp?.toMillis
                   ? cursorTimestamp.toMillis()
@@ -279,8 +313,20 @@ export class CursorManager {
       this.updateInterval = null;
     }
 
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
+    }
+
     this.currentUser = null;
     this.lastPosition = null;
+    this.lastUpdateTime = 0;
+    this.pendingUpdate = null;
   }
 
   unsubscribeAll(): void {
@@ -290,6 +336,16 @@ export class CursorManager {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
+    }
+
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
     }
   }
 

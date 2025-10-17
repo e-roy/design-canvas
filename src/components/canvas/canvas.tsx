@@ -22,7 +22,9 @@ import {
   useCanvasViewport,
   useCanvasTool,
   useSelectedShapeIds,
-  useCanvasActions,
+  useCanvasSetCurrentTool,
+  useCanvasSetViewport,
+  useCanvasSetSelectedShapeIds,
 } from "@/store/canvas-store";
 import { useUserStore } from "@/store/user-store";
 import { usePresence } from "@/hooks/usePresence";
@@ -63,12 +65,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   },
   ref
 ) {
-  // Use store selectors for global state
+  // Use individual store selectors for global state to prevent re-renders
   const viewport = useCanvasViewport();
   const currentTool = useCanvasTool();
   const selectedShapeIds = useSelectedShapeIds();
-  const { setCurrentTool, setViewport, setSelectedShapeIds } =
-    useCanvasActions();
+  const setCurrentTool = useCanvasSetCurrentTool();
+  const setViewport = useCanvasSetViewport();
+  const setSelectedShapeIds = useCanvasSetSelectedShapeIds();
 
   // Get user information for presence
   const { user } = useUserStore();
@@ -105,8 +108,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     >
   >({});
 
+  // Use ref to store presence object to prevent effect re-runs
+  const presenceRef = useRef(presence);
+  presenceRef.current = presence;
+
   useEffect(() => {
-    const unsubscribe = presence.subscribePeers((peers) => {
+    const unsubscribe = presenceRef.current.subscribePeers((peers) => {
       setPeerPresence(
         peers as Record<
           string,
@@ -126,7 +133,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       );
     });
     return unsubscribe;
-  }, [presence]);
+  }, []); // Empty dependency array - use ref for current presence
 
   // Throttled commit function for shape updates
   const commitThrottled = useMemo(() => {
@@ -466,6 +473,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   // Memoized shape renderer to prevent unnecessary re-renders
   const renderShape = useCallback(
     (shape: Shape) => {
+      // Don't render if shape is hidden
+      if (shape.visible === false) {
+        return null;
+      }
+
       const isSelected = selectedShapeIds.includes(shape.id);
 
       switch (shape.type) {
@@ -596,9 +608,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         y: constrainedY,
         ...(type === "rectangle" && { width, height }),
         ...(type === "circle" && { radius }),
-        ...(type === "text" && { text: "Click to edit", fontSize: 16 }),
+        ...(type === "text" && {
+          text: "Click to edit",
+          fontSize: 36,
+          fill: "#000000",
+        }),
         ...(type === "line" && { startX, startY, endX, endY }),
-        fill: "#ffffff",
+        // Default fill for non-text shapes
+        ...(type !== "text" && { fill: "#ffffff" }),
         stroke: "#000000",
         strokeWidth: 1,
         zIndex: Date.now(), // Add zIndex for proper stacking
@@ -606,14 +623,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       setIsCreatingShape(false);
 
-      // Smart tool switching logic:
-      // - Keep shape tools active for creating multiple shapes
-      // - Only switch to select for text tool (since it's typically one-off)
-      if (type === "text") {
-        setCurrentTool("select");
-        onToolChange?.("select");
-      }
-      // For rectangle and circle, stay in the current tool
+      // Switch to select tool after creating any shape
+      setCurrentTool("select");
+      onToolChange?.("select");
+
+      // Select the newly created shape
+      setSelectedShapeIds([newShape.id]);
 
       // Notify parent component (it will handle saving to database)
       onShapeCreate?.(newShape);
@@ -627,6 +642,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       virtualWidth,
       virtualHeight,
       setCurrentTool,
+      setSelectedShapeIds,
     ]
   );
 
@@ -694,10 +710,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     setSelectedShapeIds,
   ]);
 
-  // Global mouse move handler for cursor tracking (works during all interactions)
+  // Throttled mouse move handler to reduce re-renders
+  const lastMouseMoveTime = useRef(0);
   const handleGlobalMouseMove = useCallback(
     (e: MouseEvent) => {
       if (!onMouseMove || !containerRef.current) return;
+
+      // Simple throttling: only process mouse moves every 50ms
+      const now = Date.now();
+      if (now - lastMouseMoveTime.current < 50) return;
+      lastMouseMoveTime.current = now;
 
       // Get the container's bounding rectangle
       const containerRect = containerRef.current.getBoundingClientRect();
@@ -719,15 +741,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const virtualPosition: CursorPosition = {
         x: mouseX / viewport.scale + viewport.x,
         y: mouseY / viewport.scale + viewport.y,
-        timestamp: Date.now(),
+        timestamp: now,
       };
 
-      // Update presence cursor
-      presence.updateCursor(virtualPosition.x, virtualPosition.y);
+      // Update presence cursor (throttled to 5 FPS in usePresence)
+      // Note: This is separate from cursorManager for different purposes
+      // Disabled to prevent conflicts with cursorManager
+      // presence.updateCursor(virtualPosition.x, virtualPosition.y);
 
       onMouseMove(virtualPosition);
     },
-    [onMouseMove, viewport, presence]
+    [onMouseMove, viewport]
   );
 
   // Global mouse leave handler to clear cursor when leaving canvas
@@ -744,18 +768,34 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     onMouseMove(virtualPosition);
   }, [onMouseMove]);
 
+  // Use refs to store handlers to prevent effect re-runs
+  const handleGlobalMouseMoveRef = useRef(handleGlobalMouseMove);
+  const handleGlobalMouseLeaveRef = useRef(handleGlobalMouseLeave);
+  const onMouseMoveRef = useRef(onMouseMove);
+
+  // Update refs when handlers change
+  handleGlobalMouseMoveRef.current = handleGlobalMouseMove;
+  handleGlobalMouseLeaveRef.current = handleGlobalMouseLeave;
+  onMouseMoveRef.current = onMouseMove;
+
   // Set up global mouse event listeners for cursor tracking
   useEffect(() => {
-    if (onMouseMove) {
-      window.addEventListener("mousemove", handleGlobalMouseMove);
-      window.addEventListener("mouseleave", handleGlobalMouseLeave);
+    if (onMouseMoveRef.current) {
+      window.addEventListener("mousemove", handleGlobalMouseMoveRef.current);
+      window.addEventListener("mouseleave", handleGlobalMouseLeaveRef.current);
 
       return () => {
-        window.removeEventListener("mousemove", handleGlobalMouseMove);
-        window.removeEventListener("mouseleave", handleGlobalMouseLeave);
+        window.removeEventListener(
+          "mousemove",
+          handleGlobalMouseMoveRef.current
+        );
+        window.removeEventListener(
+          "mouseleave",
+          handleGlobalMouseLeaveRef.current
+        );
       };
     }
-  }, [handleGlobalMouseMove, handleGlobalMouseLeave, onMouseMove]);
+  }, []); // Empty dependency array - use refs for current handlers
 
   // Cleanup effect to handle edge cases
   useEffect(() => {

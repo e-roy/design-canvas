@@ -57,6 +57,7 @@ interface CanvasActions {
     shapeId: string,
     updates: Partial<StoredShape>
   ) => Promise<void>;
+  toggleShapeVisibility: (shapeId: string) => Promise<void>;
   deleteShape: (shapeId: string) => Promise<void>;
 
   // Viewport management
@@ -215,6 +216,33 @@ export const useCanvasStore = create<CanvasStore>()(
       } catch (err) {
         console.error("Error updating shape:", err);
         set({ error: "Failed to update shape" });
+        throw err;
+      }
+    },
+
+    toggleShapeVisibility: async (shapeId) => {
+      const { canvasDocument, shapes } = get();
+      const { user } = useUserStore.getState();
+
+      if (!user || !canvasDocument) {
+        throw new Error("User not authenticated or canvas not loaded");
+      }
+
+      const shape = shapes.find((s) => s.id === shapeId);
+      if (!shape) {
+        throw new Error("Shape not found");
+      }
+
+      try {
+        const newVisibility = !shape.visible;
+        await canvasService.updateShape(
+          shapeId,
+          { visible: newVisibility },
+          user.uid
+        );
+      } catch (err) {
+        console.error("Error toggling shape visibility:", err);
+        set({ error: "Failed to toggle shape visibility" });
         throw err;
       }
     },
@@ -431,70 +459,52 @@ export const useSelectedShapeIds = () =>
 export const useDraggingShapes = () =>
   useCanvasStore((state) => state.draggingShapes);
 
-// Action selectors - memoized to prevent infinite re-renders
-export const useCanvasActions = () => {
-  const setDocumentId = useCanvasStore((state) => state.setDocumentId);
-  const loadCanvas = useCanvasStore((state) => state.loadCanvas);
-  const saveShape = useCanvasStore((state) => state.saveShape);
-  const updateShape = useCanvasStore((state) => state.updateShape);
-  const deleteShape = useCanvasStore((state) => state.deleteShape);
-  const updateViewport = useCanvasStore((state) => state.updateViewport);
-  const setViewport = useCanvasStore((state) => state.setViewport);
-  const addCollaborator = useCanvasStore((state) => state.addCollaborator);
-  const removeCollaborator = useCanvasStore(
-    (state) => state.removeCollaborator
-  );
-  const setCurrentTool = useCanvasStore((state) => state.setCurrentTool);
-  const setCanvasDimensions = useCanvasStore(
-    (state) => state.setCanvasDimensions
-  );
-  const setSelectedShapeIds = useCanvasStore(
-    (state) => state.setSelectedShapeIds
-  );
-  const addSelectedShapeId = useCanvasStore(
-    (state) => state.addSelectedShapeId
-  );
-  const removeSelectedShapeId = useCanvasStore(
-    (state) => state.removeSelectedShapeId
-  );
-  const clearSelectedShapeIds = useCanvasStore(
-    (state) => state.clearSelectedShapeIds
-  );
-  const startDrag = useCanvasStore((state) => state.startDrag);
-  const updateDrag = useCanvasStore((state) => state.updateDrag);
-  const endDrag = useCanvasStore((state) => state.endDrag);
-  const clearDragState = useCanvasStore((state) => state.clearDragState);
-  const setError = useCanvasStore((state) => state.setError);
-  const clearError = useCanvasStore((state) => state.clearError);
-  const cleanup = useCanvasStore((state) => state.cleanup);
-  const reset = useCanvasStore((state) => state.reset);
-
-  return {
-    setDocumentId,
-    loadCanvas,
-    saveShape,
-    updateShape,
-    deleteShape,
-    updateViewport,
-    setViewport,
-    addCollaborator,
-    removeCollaborator,
-    setCurrentTool,
-    setCanvasDimensions,
-    setSelectedShapeIds,
-    addSelectedShapeId,
-    removeSelectedShapeId,
-    clearSelectedShapeIds,
-    startDrag,
-    updateDrag,
-    endDrag,
-    clearDragState,
-    setError,
-    clearError,
-    cleanup,
-    reset,
-  };
-};
+// Individual action selectors to prevent re-renders
+export const useCanvasSetDocumentId = () =>
+  useCanvasStore((state) => state.setDocumentId);
+export const useCanvasLoadCanvas = () =>
+  useCanvasStore((state) => state.loadCanvas);
+export const useCanvasSaveShape = () =>
+  useCanvasStore((state) => state.saveShape);
+export const useCanvasUpdateShape = () =>
+  useCanvasStore((state) => state.updateShape);
+export const useCanvasToggleShapeVisibility = () =>
+  useCanvasStore((state) => state.toggleShapeVisibility);
+export const useCanvasDeleteShape = () =>
+  useCanvasStore((state) => state.deleteShape);
+export const useCanvasUpdateViewport = () =>
+  useCanvasStore((state) => state.updateViewport);
+export const useCanvasSetViewport = () =>
+  useCanvasStore((state) => state.setViewport);
+export const useCanvasAddCollaborator = () =>
+  useCanvasStore((state) => state.addCollaborator);
+export const useCanvasRemoveCollaborator = () =>
+  useCanvasStore((state) => state.removeCollaborator);
+export const useCanvasSetCurrentTool = () =>
+  useCanvasStore((state) => state.setCurrentTool);
+export const useCanvasSetCanvasDimensions = () =>
+  useCanvasStore((state) => state.setCanvasDimensions);
+export const useCanvasSetSelectedShapeIds = () =>
+  useCanvasStore((state) => state.setSelectedShapeIds);
+export const useCanvasAddSelectedShapeId = () =>
+  useCanvasStore((state) => state.addSelectedShapeId);
+export const useCanvasRemoveSelectedShapeId = () =>
+  useCanvasStore((state) => state.removeSelectedShapeId);
+export const useCanvasClearSelectedShapeIds = () =>
+  useCanvasStore((state) => state.clearSelectedShapeIds);
+export const useCanvasStartDrag = () =>
+  useCanvasStore((state) => state.startDrag);
+export const useCanvasUpdateDrag = () =>
+  useCanvasStore((state) => state.updateDrag);
+export const useCanvasEndDrag = () => useCanvasStore((state) => state.endDrag);
+export const useCanvasClearDragState = () =>
+  useCanvasStore((state) => state.clearDragState);
+export const useCanvasSetError = () =>
+  useCanvasStore((state) => state.setError);
+export const useCanvasClearError = () =>
+  useCanvasStore((state) => state.clearError);
+export const useCanvasCleanup = () => useCanvasStore((state) => state.cleanup);
+export const useCanvasReset = () => useCanvasStore((state) => state.reset);
 
 // Combined selectors for common use cases - memoized to prevent infinite re-renders
 export const useCanvasData = () => {

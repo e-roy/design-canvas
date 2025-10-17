@@ -33,6 +33,7 @@ export interface StoredShape {
   strokeWidth?: number;
   rotation?: number;
   opacity?: number; // optional but recommended (0..1)
+  visible?: boolean; // visibility state (defaults to true)
   zIndex: number;
   createdBy: string;
   createdAt: Date | Timestamp;
@@ -128,6 +129,7 @@ export interface Shape {
   strokeWidth?: number;
   rotation?: number;
   opacity?: number;
+  visible?: boolean;
   zIndex?: number;
 }
 

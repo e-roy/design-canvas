@@ -22,8 +22,15 @@ import {
   useCanvasError,
   useCanvasTool,
   useCanvasDimensions,
-  useCanvasActions,
   useSelectedShapeIds,
+  useCanvasSetDocumentId,
+  useCanvasSaveShape,
+  useCanvasUpdateShape,
+  useCanvasToggleShapeVisibility,
+  useCanvasDeleteShape,
+  useCanvasSetCurrentTool,
+  useCanvasSetCanvasDimensions,
+  useCanvasSetSelectedShapeIds,
 } from "@/store/canvas-store";
 import {
   Canvas,
@@ -47,22 +54,31 @@ export default function CanvasPage() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
 
-  // Use the canvas store
+  // Use specific canvas store selectors to minimize re-renders
   const canvasDocument = useCanvasDocument();
   const shapes = useCanvasShapes();
   const canvasError = useCanvasError();
   const currentTool = useCanvasTool();
   const canvasDimensions = useCanvasDimensions();
   const selectedShapeIds = useSelectedShapeIds();
-  const {
-    setDocumentId,
-    saveShape,
-    updateShape,
-    deleteShape,
-    setCurrentTool,
-    setCanvasDimensions,
-    setSelectedShapeIds,
-  } = useCanvasActions();
+
+  // Use individual action selectors to prevent re-renders
+  const setDocumentId = useCanvasSetDocumentId();
+  const saveShape = useCanvasSaveShape();
+  const updateShape = useCanvasUpdateShape();
+  const toggleShapeVisibility = useCanvasToggleShapeVisibility();
+  const deleteShape = useCanvasDeleteShape();
+  const setCurrentTool = useCanvasSetCurrentTool();
+  const setCanvasDimensions = useCanvasSetCanvasDimensions();
+  const setSelectedShapeIds = useCanvasSetSelectedShapeIds();
+
+  // Use refs to access current sidebar state without causing re-renders
+  const leftSidebarOpenRef = useRef(leftSidebarOpen);
+  const rightSidebarOpenRef = useRef(rightSidebarOpen);
+
+  // Update refs when state changes
+  leftSidebarOpenRef.current = leftSidebarOpen;
+  rightSidebarOpenRef.current = rightSidebarOpen;
 
   // Memoized dimension calculation function
   const calculateCanvasDimensions = useCallback(() => {
@@ -99,34 +115,35 @@ export default function CanvasPage() {
     [user]
   );
 
-  // Consolidated initialization and setup effect
+  // Initialize canvas document ID once
   useEffect(() => {
-    // Initialize canvas document ID
     setDocumentId(MAIN_CANVAS_ID);
+  }, [setDocumentId]);
 
-    // Set up cursor tracking if user exists
-    if (user) {
-      cursorManager.setUser({
-        uid: user.uid,
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-      });
+  // Set up cursor tracking when user changes
+  useEffect(() => {
+    if (!user) return;
 
-      // Subscribe to cursor updates
-      const unsubscribeCursors = cursorManager.subscribeToCanvasCursors(
-        (newCursors) => {
-          setCursors(newCursors);
-        }
-      );
+    cursorManager.setUser({
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+    });
 
-      // Cleanup cursor tracking
-      return () => {
-        unsubscribeCursors();
-        cursorManager.clearUserCursor();
-      };
-    }
-  }, [setDocumentId, user, setCursors]);
+    // Subscribe to cursor updates
+    const unsubscribeCursors = cursorManager.subscribeToCanvasCursors(
+      (newCursors) => {
+        setCursors(newCursors);
+      }
+    );
+
+    // Cleanup cursor tracking
+    return () => {
+      unsubscribeCursors();
+      cursorManager.clearUserCursor();
+    };
+  }, [user, setCursors]);
 
   // Optimized dimensions effect with debouncing
   useEffect(() => {
@@ -215,6 +232,17 @@ export default function CanvasPage() {
     [setSelectedShapeIds]
   );
 
+  const handleShapeVisibilityToggle = useCallback(
+    async (shapeId: string) => {
+      try {
+        await toggleShapeVisibility(shapeId);
+      } catch (error) {
+        console.error("Error toggling shape visibility:", error);
+      }
+    },
+    [toggleShapeVisibility]
+  );
+
   // Memoized sidebar toggle handlers
   const handleLeftSidebarToggle = useCallback(() => {
     setLeftSidebarOpen((prev) => !prev);
@@ -242,6 +270,7 @@ export default function CanvasPage() {
         stroke: storedShape.stroke,
         strokeWidth: storedShape.strokeWidth,
         rotation: storedShape.rotation,
+        visible: storedShape.visible,
         zIndex: storedShape.zIndex,
       })),
     [shapes]
@@ -277,17 +306,20 @@ export default function CanvasPage() {
           shapeData.strokeWidth = shape.strokeWidth;
         if (shape.rotation !== undefined) shapeData.rotation = shape.rotation;
 
-        await saveShape(
+        const shapeId = await saveShape(
           shapeData as Omit<
             StoredShape,
             "id" | "createdAt" | "updatedAt" | "updatedBy"
           >
         );
+
+        // Select the newly created shape
+        setSelectedShapeIds([shapeId]);
       } catch (error) {
         console.error("Error saving shape:", error);
       }
     },
-    [canvasDocument, user, saveShape]
+    [canvasDocument, user, saveShape, setSelectedShapeIds]
   );
 
   // Memoized selected shape calculation
@@ -368,6 +400,7 @@ export default function CanvasPage() {
               shapes={shapes}
               selectedShapeIds={selectedShapeIds}
               onShapeSelect={handleShapeSelect}
+              onShapeVisibilityToggle={handleShapeVisibilityToggle}
             />
           </SidebarContent>
 

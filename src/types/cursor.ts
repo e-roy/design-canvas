@@ -28,6 +28,8 @@ export interface CursorConfig {
   updateInterval: number; // milliseconds
   cleanupThreshold: number; // milliseconds
   maxCursors: number;
+  positionThreshold: number; // pixels - minimum movement to trigger update
+  debounceDelay: number; // milliseconds - debounce delay for rapid movements
 }
 
 // Random color generation for cursors

@@ -165,6 +165,7 @@ export class CanvasService {
         | "stroke"
         | "strokeWidth"
         | "rotation"
+        | "visible"
         | "zIndex"
       >
     >,
@@ -207,6 +208,7 @@ export class CanvasService {
         | "stroke"
         | "strokeWidth"
         | "rotation"
+        | "visible"
         | "zIndex"
         | "canvasId"
       >

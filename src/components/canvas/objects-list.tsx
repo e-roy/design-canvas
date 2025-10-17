@@ -20,10 +20,6 @@ export const ObjectsList = memo(function ObjectsList({
   onShapeVisibilityToggle,
   className,
 }: ObjectsListProps) {
-  // Track visibility state for each shape (default to visible)
-  const [shapeVisibility, setShapeVisibility] = React.useState<
-    Record<string, boolean>
-  >({});
   const getShapeIcon = (type: string) => {
     switch (type) {
       case "rectangle":
@@ -59,9 +55,11 @@ export const ObjectsList = memo(function ObjectsList({
 
   const handleVisibilityToggle = (shapeId: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    const newVisibility = !shapeVisibility[shapeId];
-    setShapeVisibility((prev) => ({ ...prev, [shapeId]: newVisibility }));
-    onShapeVisibilityToggle?.(shapeId, newVisibility);
+    const shape = shapes.find((s) => s.id === shapeId);
+    if (shape) {
+      const newVisibility = !shape.visible;
+      onShapeVisibilityToggle?.(shapeId, newVisibility);
+    }
   };
 
   if (shapes.length === 0) {
@@ -135,7 +133,7 @@ export const ObjectsList = memo(function ObjectsList({
                   className="flex-shrink-0 p-1 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                   onClick={(e) => handleVisibilityToggle(shape.id, e)}
                 >
-                  {shapeVisibility[shape.id] !== false ? (
+                  {shape.visible !== false ? (
                     <Eye className="w-3 h-3 text-gray-500 dark:text-gray-400" />
                   ) : (
                     <EyeOff className="w-3 h-3 text-gray-400 dark:text-gray-500" />

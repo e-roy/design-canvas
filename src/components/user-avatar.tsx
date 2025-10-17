@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,13 +21,13 @@ import { canvasService } from "@/lib/canvas-service";
 
 import { logout } from "@/lib/firebase/auth";
 
-export function UserAvatar() {
+export const UserAvatar = memo(function UserAvatar() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const { user, clearUser } = useUserStore();
   const { clearCursors } = useCursorStore();
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       // Clear cursor data and unsubscribe from all listeners before signing out
       cursorManager.clearUserCursor();
@@ -51,40 +51,61 @@ export function UserAvatar() {
     } catch (error) {
       console.error("Logout error:", error);
     }
-  };
+  }, [router, clearUser, clearCursors]);
+
+  const getInitials = useCallback(
+    (name: string | null, email: string | null) => {
+      if (name) {
+        return name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+      }
+      if (email) {
+        return email[0].toUpperCase();
+      }
+      return "U";
+    },
+    []
+  );
+
+  const userInitials = useMemo(
+    () => (user ? getInitials(user.displayName, user.email) : "U"),
+    [user, getInitials]
+  );
 
   if (!user) {
     return null;
   }
 
-  const getInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email[0].toUpperCase();
-    }
-    return "U";
-  };
-
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage
-              src={user.photoURL || ""}
-              alt={user.displayName || ""}
-            />
-            <AvatarFallback className="bg-blue-500 text-white text-sm">
-              {getInitials(user.displayName, user.email)}
-            </AvatarFallback>
-          </Avatar>
+        <Button
+          variant="ghost"
+          className="relative w-full h-auto p-3 justify-start"
+        >
+          <div className="flex items-center space-x-3 w-full">
+            <Avatar className="h-10 w-10 flex-shrink-0">
+              <AvatarImage
+                src={user.photoURL || ""}
+                alt={user.displayName || ""}
+              />
+              <AvatarFallback className="bg-blue-500 text-white text-sm">
+                {userInitials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col items-start min-w-0 flex-1 text-left">
+              <p className="text-sm font-medium leading-none truncate w-full text-left">
+                {user.displayName || "User"}
+              </p>
+              <p className="text-xs text-muted-foreground leading-none mt-1 truncate w-full text-left">
+                {user.email}
+              </p>
+            </div>
+          </div>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -108,4 +129,4 @@ export function UserAvatar() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+});

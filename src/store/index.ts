@@ -12,7 +12,6 @@ export {
   useCanvasDimensions,
   useSelectedShapeIds,
   useDraggingShapes,
-  useCanvasActions,
   useCanvasData,
   useCanvasUI,
 } from "./canvas-store";

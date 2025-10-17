@@ -55,6 +55,8 @@ service cloud.firestore {
       // Allow update for authenticated users with valid partial data
       // Note: Version increment validation is handled by transactions, not rules
       allow update: if isAuthenticated() && isValidShapeForUpdate();
+      // Allow delete for authenticated users
+      allow delete: if isAuthenticated();
     }
 
     // Default rule for other collections (restrictive)

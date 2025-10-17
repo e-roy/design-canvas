@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { PanelLeftIcon, PanelRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ interface SidebarTriggerProps {
   className?: string;
 }
 
-export function CustomSidebarTrigger({
+export const CustomSidebarTrigger = memo(function CustomSidebarTrigger({
   side,
   onToggle,
   isOpen,
@@ -46,4 +47,4 @@ export function CustomSidebarTrigger({
       <span className="sr-only">Toggle {side} Sidebar</span>
     </Button>
   );
-}
+});

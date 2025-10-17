@@ -12,8 +12,20 @@ design-canvas/
 ├── cursor/
 │   └── rules/
 │       └── project-structure.mdc
+├── database.rules.json          # Firebase database rules
+├── docs/                        # Project documentation
+│   ├── architecture.md
+│   ├── object-storage/
+│   │   ├── changes-to-make.md
+│   │   ├── shapes-changes.md
+│   │   └── steps-forward.md
+│   ├── PRD.md
+│   └── tasks.md
 ├── env.example                  # Environment variables template
 ├── eslint.config.mjs           # ESLint configuration
+├── firebase.json               # Firebase configuration
+├── firestore.indexes.json      # Firestore indexes
+├── firestore.rules             # Firestore security rules
 ├── next-env.d.ts               # Next.js TypeScript declarations
 ├── next.config.ts              # Next.js configuration
 ├── node_modules/               # Dependencies
@@ -29,7 +41,6 @@ design-canvas/
 ├── README.md                   # Project documentation
 ├── src/
 │   ├── app/                    # Next.js app directory
-│   │   ├── api/                # API routes
 │   │   ├── canvas/             # Canvas page
 │   │   │   └── page.tsx        # Main canvas interface
 │   │   ├── login/              # Authentication page
@@ -37,8 +48,27 @@ design-canvas/
 │   │   ├── favicon.ico
 │   │   ├── globals.css
 │   │   ├── layout.tsx
+│   │   ├── not-found.tsx       # 404 page
 │   │   └── page.tsx            # Home page
 │   ├── components/
+│   │   ├── canvas/             # Canvas-specific components
+│   │   │   ├── canvas.tsx      # Main canvas component
+│   │   │   ├── cursor.tsx      # Cursor component
+│   │   │   ├── grid.tsx        # Grid component
+│   │   │   ├── index.ts        # Canvas components export
+│   │   │   ├── objects-list.tsx # Objects list component
+│   │   │   ├── properties-panel.tsx # Properties panel
+│   │   │   ├── shapes/         # Shape components
+│   │   │   │   ├── circle.tsx
+│   │   │   │   ├── index.ts
+│   │   │   │   ├── line.tsx
+│   │   │   │   ├── rectangle.tsx
+│   │   │   │   └── text.tsx
+│   │   │   ├── sidebar-triggers.tsx # Sidebar triggers
+│   │   │   ├── toolbar.tsx     # Canvas toolbar
+│   │   │   └── viewport.tsx    # Canvas viewport
+│   │   ├── compact-presence.tsx # Compact presence component
+│   │   ├── error-boundary.tsx  # Error boundary component
 │   │   ├── ui/                 # Reusable UI components
 │   │   │   ├── accordion.tsx
 │   │   │   ├── alert-dialog.tsx
@@ -93,19 +123,32 @@ design-canvas/
 │   │   │   ├── toggle-group.tsx
 │   │   │   ├── toggle.tsx
 │   │   │   └── tooltip.tsx
-│   │   └── user-avatar.tsx     # User avatar component
+│   └── user-avatar.tsx         # User avatar component
 │   ├── hooks/
 │   │   ├── use-mobile.ts       # Mobile detection hook
-│   │   └── use-canvas.ts       # Canvas collaboration hook
+│   │   └── usePresence.ts      # Presence management hook
 │   ├── lib/
-│   │   ├── firebase.ts         # Firebase configuration
+│   │   ├── canvas-service.ts   # Canvas service
+│   │   ├── cursor-manager.ts   # Cursor management
+│   │   ├── firebase/           # Firebase utilities
+│   │   │   ├── auth-errors.ts  # Auth error handling
+│   │   │   ├── auth.ts         # Auth utilities
+│   │   │   └── index.ts        # Firebase exports
 │   │   └── utils.ts            # Utility functions
-│   ├── types/
-│   │   ├── index.ts            # Main types export file
-│   │   └── presence.ts         # Presence-related type definitions
+│   ├── middleware.ts           # Next.js middleware
+│   ├── services/
+│   │   └── shapeTransactions.ts # Shape transaction service
 │   ├── store/
-│       ├── index.ts            # Store exports
-│       └── user-store.ts       # User state management
+│   │   ├── canvas-store.ts     # Canvas state management
+│   │   ├── cursor-store.ts     # Cursor state management
+│   │   ├── index.ts            # Store exports
+│   │   └── user-store.ts       # User state management
+│   ├── types/
+│   │   ├── canvas.ts           # Canvas type definitions
+│   │   ├── cursor.ts           # Cursor type definitions
+│   │   └── index.ts            # Main types export file
+│   └── utils/
+│       └── throttle.ts         # Throttle utility
 └── tsconfig.json               # TypeScript configuration
 ```
 
@@ -132,9 +175,12 @@ design-canvas/
 ### State Management
 
 - **`store/user-store.ts`** - Zustand store for user authentication state
-- **`lib/firebase.ts`** - Firebase configuration and authentication setup
+- **`store/canvas-store.ts`** - Zustand store for canvas state management
+- **`store/cursor-store.ts`** - Zustand store for cursor state management
+- **`lib/firebase/`** - Firebase configuration and authentication setup
 - **`types/index.ts`** - TypeScript type definitions and interfaces
 - **`lib/canvas-service.ts`** - Canvas database operations and real-time sync
+- **`services/shapeTransactions.ts`** - Shape transaction service for database operations
 
 ## Installed Packages
 
@@ -154,7 +200,7 @@ design-canvas/
 - **firebase**: Firebase SDK
 - **input-otp**: OTP input component
 - **konva**: 2D canvas library for graphics and animations
-- **konva-canvas**: Canvas rendering engine for Konva
+- **react-konva**: React bindings for Konva
 - **lucide-react**: Icon library
 - **next**: Next.js React framework (v15.5.5)
 - **next-firebase-auth-edge**: Firebase auth for Next.js Edge Runtime
@@ -178,6 +224,7 @@ design-canvas/
 - **@types/node**: Node.js TypeScript types
 - **@types/react**: React TypeScript types
 - **@types/react-dom**: React DOM TypeScript types
+- **babel-plugin-react-compiler**: React compiler plugin
 - **eslint**: JavaScript linter
 - **eslint-config-next**: Next.js ESLint configuration
 - **tailwindcss**: CSS framework (v4)
@@ -228,32 +275,29 @@ Next.js 15 application with TypeScript, Tailwind CSS, comprehensive UI component
 - **Create page-specific folders** for components used only by specific pages
   - Example: `src/components/login/` for login page components
   - Example: `src/components/canvas/` for canvas page components
+    - `canvas.tsx` - Main canvas component with Konva integration
+    - `cursor.tsx` - Real-time cursor display component
+    - `grid.tsx` - Canvas grid component
+    - `objects-list.tsx` - Objects list sidebar component
+    - `properties-panel.tsx` - Properties editing panel
+    - `shapes/` - Individual shape components (circle, rectangle, line, text)
+    - `sidebar-triggers.tsx` - Sidebar toggle components
+    - `toolbar.tsx` - Canvas drawing tools toolbar
+    - `viewport.tsx` - Canvas viewport component
 - **Use `src/components/ui/`** for reusable UI components (already established)
 - **Use `src/components/`** for shared components used across multiple pages
+  - `compact-presence.tsx` - Compact user presence display
+  - `error-boundary.tsx` - Error boundary component
+  - `user-avatar.tsx` - User avatar component
 - **Use `src/types/`** for TypeScript type definitions and interfaces
-  - Organize types by domain (e.g., `presence.ts`, `auth.ts`, `canvas.ts`)
+  - Organize types by domain (e.g., `canvas.ts`, `cursor.ts`, `index.ts`)
   - Use `index.ts` to export all types from domain files
+- **Use `src/services/`** for service layer components
+  - `shapeTransactions.ts` - Shape database transaction service
+- **Use `src/utils/`** for utility functions
+  - `throttle.ts` - Throttling utility functions
 - **Naming convention**: Use kebab-case for folder names, PascalCase for component files
 
-#### Component Structure Examples
+#### Development Environment
 
-```
-src/components/
-├── ui/                    # Reusable UI components
-├── login/                 # Login page specific components
-│   ├── login-form.tsx
-│   └── auth-provider.tsx
-├── canvas/                # Canvas page specific components
-│   ├── canvas-toolbar.tsx
-│   ├── shape-tools.tsx
-│   └── collaboration-panel.tsx
-└── shared/                # Components used across multiple pages
-    ├── navigation.tsx
-    └── footer.tsx
-
-src/types/
-├── index.ts               # Main export file for all types
-├── presence.ts            # Presence system types
-├── auth.ts                # Authentication types (future)
-└── canvas.ts              # Canvas-specific types (future)
-```
+Assume the user is always running a development environment.
