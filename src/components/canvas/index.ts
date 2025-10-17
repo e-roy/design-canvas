@@ -1,5 +1,7 @@
 export { Canvas } from "./canvas";
 export type { CanvasRef } from "./canvas";
+export { Canvas as CanvasRefactored } from "./canvas-refactored";
+export type { CanvasRef as CanvasRefactoredRef } from "./canvas-refactored";
 export { Viewport } from "./viewport";
 export { CanvasGrid } from "./grid";
 export * from "./shapes";

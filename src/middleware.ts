@@ -46,6 +46,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/canvas/:path*",
+    "/canvas-refactored/:path*",
     "/api/login",
     "/api/logout",
     "/api/refresh-token",

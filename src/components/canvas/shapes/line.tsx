@@ -34,9 +34,7 @@ export const LineShape = memo(function LineShape({
   const startHandleRef = useRef<KonvaCircle>(null);
   const endHandleRef = useRef<KonvaCircle>(null);
   const [, _setIsDragging] = useState(false);
-  const [draggingHandle, setDraggingHandle] = useState<"start" | "end" | null>(
-    null
-  );
+  const [, setDraggingHandle] = useState<"start" | "end" | null>(null);
 
   // Handle dragging the entire line
   const handleLineDragStart = useCallback(() => {
