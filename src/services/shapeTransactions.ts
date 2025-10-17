@@ -31,6 +31,10 @@ export async function updateShape(
       console.warn(`Update conflict for shape ${shapeId}, skipping update`);
       return; // Skip this update rather than retry
     }
+    if (firebaseError.code === "permission-denied") {
+      console.warn(`Permission denied for shape ${shapeId}, skipping update`);
+      return; // Skip this update silently
+    }
     throw error;
   }
 }

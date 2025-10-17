@@ -97,6 +97,7 @@ export default function LoginPage() {
       // Error logging is handled in getAuthErrorMessage to avoid console spam
       const errorMessage = getAuthErrorMessage(error);
       setError(errorMessage);
+      setIsLoading(false);
     }
   };
 
@@ -132,6 +133,7 @@ export default function LoginPage() {
       // Error logging is handled in getAuthErrorMessage to avoid console spam
       const errorMessage = getAuthErrorMessage(error);
       setError(errorMessage);
+      setIsLoading(false);
     }
   };
 

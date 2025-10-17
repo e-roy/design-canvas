@@ -116,14 +116,14 @@ export const ObjectsList = memo(function ObjectsList({
                 )}
                 onClick={() => onShapeSelect(shape.id)}
               >
-                <div className="flex items-center gap-2 flex-1">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
                   {/* Shape icon */}
                   <div className="flex-shrink-0">
                     {getShapeIcon(shape.type)}
                   </div>
 
                   {/* Shape name */}
-                  <span className="text-sm truncate">
+                  <span className="text-sm truncate min-w-0">
                     {getShapeDisplayName(shape, index)}
                   </span>
                 </div>

@@ -1,11 +1,7 @@
 import { ref, set, update, onValue, onDisconnect } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import {
-  CursorPosition,
-  CanvasCursorState,
-  generateUserColor,
-  CursorConfig,
-} from "@/types";
+import { CursorPosition, CanvasCursorState, CursorConfig } from "@/types";
+import { generateUserColor } from "@/utils/color";
 import { User } from "@/store/user-store";
 
 const CURSOR_COLLECTION = "canvas_cursors";
@@ -62,7 +58,7 @@ export class CursorManager {
     // Initialize cursor with all required fields for efficient updates
     const initialCursor = {
       userId: user.uid,
-      displayName: user.displayName || "Anonymous",
+      displayName: user.displayName || user.email?.split("@")[0] || "Anonymous",
       color: this.userColor,
       photoURL: user.photoURL,
       currentProject: this.canvasId,
@@ -101,13 +97,20 @@ export class CursorManager {
 
     // Filter out off-screen positions (indicates mouse left canvas)
     if (position.x < -500 || position.y < -500) {
-      // Clear cursor by setting it to null
+      // Instead of clearing the entire cursor, just mark it as off-screen
+      // This preserves user metadata (displayName, color, etc.)
       const cursorRef = ref(
         realtimeDb,
         this.getCursorPath(this.currentUser.uid)
       );
-      set(cursorRef, null).catch((error) => {
-        console.error("Error clearing cursor:", error);
+
+      // Update only the position to indicate off-screen, preserve user data
+      update(cursorRef, {
+        x: -1000, // Off-screen marker
+        y: -1000, // Off-screen marker
+        t: Date.now(),
+      }).catch((error) => {
+        console.error("Error updating off-screen cursor:", error);
       });
       return;
     }
@@ -190,6 +193,7 @@ export class CursorManager {
               // Old format with position object (for backward compatibility)
               const cursor = cursorData as {
                 displayName?: string;
+                email?: string;
                 color?: string;
                 photoURL?: string | null;
                 currentProject?: string | null;
@@ -201,7 +205,10 @@ export class CursorManager {
               };
               x = cursor.position?.x || 0;
               y = cursor.position?.y || 0;
-              displayName = cursor.displayName || "Anonymous";
+              displayName =
+                cursor.displayName ||
+                cursor.email?.split("@")[0] ||
+                "Anonymous";
               color = cursor.color || "#000000";
               photoURL = cursor.photoURL || null;
               currentProject = cursor.currentProject || null;
@@ -218,6 +225,7 @@ export class CursorManager {
               // New optimized format with minimal fields
               const cursor = cursorData as {
                 displayName?: string;
+                email?: string;
                 color?: string;
                 photoURL?: string | null;
                 currentProject?: string | null;
@@ -228,7 +236,10 @@ export class CursorManager {
               };
               x = cursor.x || 0;
               y = cursor.y || 0;
-              displayName = cursor.displayName || "Anonymous";
+              displayName =
+                cursor.displayName ||
+                cursor.email?.split("@")[0] ||
+                "Anonymous";
               color = cursor.color || "#000000";
               photoURL = cursor.photoURL || null;
               currentProject = cursor.currentProject || null;
@@ -250,17 +261,20 @@ export class CursorManager {
               timestamp > 0 &&
               now - timestamp < this.config.cleanupThreshold
             ) {
-              cursors[userId] = {
-                userId,
-                displayName,
-                color,
-                photoURL,
-                currentProject,
-                x,
-                y,
-                timestamp: timestamp || 0,
-                isOnline: true,
-              };
+              // Don't show cursors that are off-screen (marked with -1000)
+              if (x !== -1000 && y !== -1000) {
+                cursors[userId] = {
+                  userId,
+                  displayName,
+                  color,
+                  photoURL,
+                  currentProject,
+                  x,
+                  y,
+                  timestamp: timestamp || 0,
+                  isOnline: true,
+                };
+              }
             }
           }
         });
@@ -301,6 +315,7 @@ export class CursorManager {
     if (!this.currentUser) return;
 
     const cursorRef = ref(realtimeDb, this.getCursorPath(this.currentUser.uid));
+    // Set to null only when user actually logs out/disconnects
     set(cursorRef, null).catch((error) => {
       // Only log non-permission errors to avoid console spam during logout
       if ((error as { code?: string }).code !== "permission_denied") {

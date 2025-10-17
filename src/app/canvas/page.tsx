@@ -48,7 +48,7 @@ const MAIN_CANVAS_ID = "main-collaborative-canvas";
 
 export default function CanvasPage() {
   const canvasRef = useRef<CanvasRef>(null);
-  const { user } = useUserStore();
+  const { user, _hasHydrated } = useUserStore();
   const { setCursors } = useCursorStore();
 
   // Sidebar state management with localStorage persistence
@@ -145,11 +145,12 @@ export default function CanvasPage() {
     }
 
     setIsLoading(false);
-  }, [setDocumentId]);
+  }, [setDocumentId, loadViewportFromStorage]);
 
   // Set up cursor tracking when user changes
   useEffect(() => {
-    if (!user) return;
+    // Wait for store hydration before initializing cursor manager
+    if (!_hasHydrated || !user) return;
 
     cursorManager.setUser({
       uid: user.uid,
@@ -170,7 +171,7 @@ export default function CanvasPage() {
       unsubscribeCursors();
       cursorManager.clearUserCursor();
     };
-  }, [user, setCursors]);
+  }, [user, _hasHydrated, setCursors]);
 
   // Optimized dimensions effect with debouncing
   useEffect(() => {

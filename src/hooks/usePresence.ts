@@ -84,8 +84,9 @@ export function usePresence(
     ) => {
       if (user.uid && user.uid !== "anonymous") {
         const now = Date.now();
-        // Throttle gesture updates to max 5 per second
-        if (now - lastGestureUpdate.current > 200) {
+        // For null gestures (clearing), update immediately to prevent ghost objects
+        // For active gestures, throttle to max 5 per second
+        if (gesture === null || now - lastGestureUpdate.current > 200) {
           lastGestureUpdate.current = now;
           update(baseRef, { gesture, lastSeen: now });
         }

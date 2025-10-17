@@ -18,6 +18,7 @@ import { CanvasGrid } from "./grid";
 import { RectangleShape, CircleShape, TextShape, LineShape } from "./shapes";
 import { CursorsOverlay } from "./cursor";
 import { CursorPosition } from "@/types";
+import { generateUserColor } from "@/utils/color";
 import {
   useCanvasViewport,
   useCanvasTool,
@@ -81,7 +82,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     () => ({
       uid: user?.uid || "anonymous",
       name: user?.displayName || user?.email || "Anonymous",
-      color: "#3b82f6", // Default blue color
+      color: user?.uid ? generateUserColor(user.uid) : "#3b82f6", // Generate color based on user ID
     }),
     [user?.uid, user?.displayName, user?.email]
   );
@@ -136,23 +137,31 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   useEffect(() => {
     const unsubscribe = presenceRef.current.subscribePeers((peers) => {
-      setPeerPresence(
-        peers as Record<
-          string,
-          {
-            name: string;
-            color: string;
-            cursor: { x: number; y: number };
-            selection: string[];
-            gesture: {
-              type: string;
-              shapeId: string;
-              draft: Record<string, unknown>;
-            } | null;
-            lastSeen: number;
-          }
-        >
-      );
+      const now = Date.now();
+      const cleanedPeers: Record<
+        string,
+        {
+          name: string;
+          color: string;
+          cursor: { x: number; y: number };
+          selection: string[];
+          gesture: {
+            type: string;
+            shapeId: string;
+            draft: Record<string, unknown>;
+          } | null;
+          lastSeen: number;
+        }
+      > = {};
+
+      // Filter out stale peer data (older than 10 seconds)
+      Object.entries(peers).forEach(([peerId, peer]) => {
+        if (peer && peer.lastSeen && now - peer.lastSeen < 10000) {
+          cleanedPeers[peerId] = peer as any;
+        }
+      });
+
+      setPeerPresence(cleanedPeers);
     });
     return unsubscribe;
   }, []); // Empty dependency array - use ref for current presence
@@ -245,6 +254,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           (s) => s.id === gesture.shapeId
         );
         if (originalShape) {
+          // Check if this shape is being dragged locally by the current user
+          // If so, don't show a ghost to prevent visual conflicts
+          const isLocallyDragging = localDragState[gesture.shapeId];
+          if (isLocallyDragging) {
+            return; // Skip creating ghost for locally dragged shapes
+          }
+
+          // Only show ghost if the gesture data is recent (within last 2 seconds)
+          const gestureAge = Date.now() - peer.lastSeen;
+          if (gestureAge > 2000) {
+            return; // Skip stale gestures
+          }
+
           ghosts.push({
             ...originalShape,
             id: `ghost-${peerId}-${gesture.shapeId}`,
@@ -264,7 +286,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       }
     });
     return ghosts;
-  }, [peerPresence, externalShapes, user?.uid]);
+  }, [peerPresence, externalShapes, user?.uid, localDragState]);
 
   // Apply local drag positions to real shapes only
   const shapes = useMemo(() => {
@@ -454,7 +476,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         delete rtdbUpdateRef.current[id];
       }
 
-      // Clear presence gesture
+      // Clear presence gesture immediately to prevent ghost objects
       presence.updateGesture(null);
 
       // Final Firebase update with actual position from Konva
