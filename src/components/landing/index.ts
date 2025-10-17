@@ -1,0 +1,10 @@
+export { Navbar } from "./navbar";
+export { Hero } from "./hero";
+export { Benefits } from "./benefits";
+export { Process } from "./process";
+export { Features } from "./features";
+export { Pricing } from "./pricing";
+export { Testimonials } from "./testimonials";
+export { FAQ } from "./faq";
+export { CTA } from "./cta";
+export { Footer } from "./footer";

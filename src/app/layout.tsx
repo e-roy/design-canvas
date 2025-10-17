@@ -15,9 +15,63 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Design Canvas - Collaborative Design Platform",
+  title: "CollabCanvas — Design Together, Smarter",
   description:
-    "Real-time collaborative design canvas for teams to create and iterate together",
+    "CollabCanvas lets teams co-create beautiful designs in real time — with AI that helps you ideate, refine, and ship faster.",
+  keywords: [
+    "collaborative design",
+    "real-time collaboration",
+    "AI design assistant",
+    "team design",
+    "design canvas",
+  ],
+  authors: [{ name: "CollabCanvas" }],
+  creator: "CollabCanvas",
+  publisher: "CollabCanvas",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL("https://collabcanvas.com"),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "CollabCanvas — Design Together, Smarter",
+    description:
+      "CollabCanvas lets teams co-create beautiful designs in real time — with AI that helps you ideate, refine, and ship faster.",
+    url: "https://collabcanvas.com",
+    siteName: "CollabCanvas",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "CollabCanvas interface with multiple cursors collaborating on a canvas",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CollabCanvas — Design Together, Smarter",
+    description:
+      "CollabCanvas lets teams co-create beautiful designs in real time — with AI that helps you ideate, refine, and ship faster.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({
