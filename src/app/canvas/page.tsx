@@ -225,6 +225,10 @@ export default function CanvasPage() {
         if (updates.text !== undefined) updateData.text = updates.text;
         if (updates.fontSize !== undefined)
           updateData.fontSize = updates.fontSize;
+        if (updates.startX !== undefined) updateData.startX = updates.startX;
+        if (updates.startY !== undefined) updateData.startY = updates.startY;
+        if (updates.endX !== undefined) updateData.endX = updates.endX;
+        if (updates.endY !== undefined) updateData.endY = updates.endY;
         if (updates.fill !== undefined) updateData.fill = updates.fill;
         if (updates.stroke !== undefined) updateData.stroke = updates.stroke;
         if (updates.strokeWidth !== undefined)
@@ -328,6 +332,10 @@ export default function CanvasPage() {
         radius: storedShape.radius,
         text: storedShape.text,
         fontSize: storedShape.fontSize,
+        startX: storedShape.startX,
+        startY: storedShape.startY,
+        endX: storedShape.endX,
+        endY: storedShape.endY,
         fill: storedShape.fill,
         stroke: storedShape.stroke,
         strokeWidth: storedShape.strokeWidth,
@@ -367,6 +375,12 @@ export default function CanvasPage() {
         if (shape.strokeWidth !== undefined)
           shapeData.strokeWidth = shape.strokeWidth;
         if (shape.rotation !== undefined) shapeData.rotation = shape.rotation;
+
+        // Add line-specific properties
+        if (shape.startX !== undefined) shapeData.startX = shape.startX;
+        if (shape.startY !== undefined) shapeData.startY = shape.startY;
+        if (shape.endX !== undefined) shapeData.endX = shape.endX;
+        if (shape.endY !== undefined) shapeData.endY = shape.endY;
 
         const shapeId = await saveShape(
           shapeData as Omit<

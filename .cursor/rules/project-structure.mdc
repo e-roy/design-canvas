@@ -301,3 +301,4 @@ Next.js 15 application with TypeScript, Tailwind CSS, comprehensive UI component
 #### Development Environment
 
 Assume the user is always running a development environment and there is no need to start a development environment.
+Always avoid using `any` type, this will throw a build error.

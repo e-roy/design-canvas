@@ -23,7 +23,23 @@ service cloud.firestore {
              data.zIndex is number &&
              data.version is number &&
              data.version > 0 &&
-             data.updatedBy == getUserId();
+             data.updatedBy == getUserId() &&
+             // Allow optional properties for different shape types
+             (!data.keys().hasAny(['width']) || data.width is number) &&
+             (!data.keys().hasAny(['height']) || data.height is number) &&
+             (!data.keys().hasAny(['radius']) || data.radius is number) &&
+             (!data.keys().hasAny(['text']) || data.text is string) &&
+             (!data.keys().hasAny(['fontSize']) || data.fontSize is number) &&
+             (!data.keys().hasAny(['startX']) || data.startX is number) &&
+             (!data.keys().hasAny(['startY']) || data.startY is number) &&
+             (!data.keys().hasAny(['endX']) || data.endX is number) &&
+             (!data.keys().hasAny(['endY']) || data.endY is number) &&
+             (!data.keys().hasAny(['fill']) || data.fill is string) &&
+             (!data.keys().hasAny(['stroke']) || data.stroke is string) &&
+             (!data.keys().hasAny(['strokeWidth']) || data.strokeWidth is number) &&
+             (!data.keys().hasAny(['rotation']) || data.rotation is number) &&
+             (!data.keys().hasAny(['opacity']) || data.opacity is number) &&
+             (!data.keys().hasAny(['visible']) || data.visible is bool);
     }
 
     // Helper function to validate shape data for updates
@@ -35,7 +51,23 @@ service cloud.firestore {
              (!data.keys().hasAny(['x']) || data.x is number) &&
              (!data.keys().hasAny(['y']) || data.y is number) &&
              (!data.keys().hasAny(['zIndex']) || data.zIndex is number) &&
-             (!data.keys().hasAny(['version']) || data.version is number);
+             (!data.keys().hasAny(['version']) || data.version is number) &&
+             // Allow optional properties for different shape types
+             (!data.keys().hasAny(['width']) || data.width is number) &&
+             (!data.keys().hasAny(['height']) || data.height is number) &&
+             (!data.keys().hasAny(['radius']) || data.radius is number) &&
+             (!data.keys().hasAny(['text']) || data.text is string) &&
+             (!data.keys().hasAny(['fontSize']) || data.fontSize is number) &&
+             (!data.keys().hasAny(['startX']) || data.startX is number) &&
+             (!data.keys().hasAny(['startY']) || data.startY is number) &&
+             (!data.keys().hasAny(['endX']) || data.endX is number) &&
+             (!data.keys().hasAny(['endY']) || data.endY is number) &&
+             (!data.keys().hasAny(['fill']) || data.fill is string) &&
+             (!data.keys().hasAny(['stroke']) || data.stroke is string) &&
+             (!data.keys().hasAny(['strokeWidth']) || data.strokeWidth is number) &&
+             (!data.keys().hasAny(['rotation']) || data.rotation is number) &&
+             (!data.keys().hasAny(['opacity']) || data.opacity is number) &&
+             (!data.keys().hasAny(['visible']) || data.visible is bool);
     }
 
     // Canvas documents - users can read/write canvas documents

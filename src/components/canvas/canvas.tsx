@@ -636,27 +636,92 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           radius = previewShape.radius;
         } else if (
           type === "line" &&
-          previewShape.startX &&
-          previewShape.startY &&
-          previewShape.endX &&
-          previewShape.endY
+          previewShape.startX !== undefined &&
+          previewShape.startY !== undefined &&
+          previewShape.endX !== undefined &&
+          previewShape.endY !== undefined
         ) {
           startX = previewShape.startX;
           startY = previewShape.startY;
           endX = previewShape.endX;
           endY = previewShape.endY;
+
+          // Ensure line has minimum length
+          const lineLength = Math.sqrt(
+            Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)
+          );
+          if (lineLength < 10) {
+            // If line is too short, extend it horizontally
+            endX = startX + 100;
+            endY = startY;
+          }
         }
       }
 
       // Constrain shape position to canvas boundaries
-      const constrainedX = Math.max(
-        0,
-        Math.min(virtualWidth - (width || 100), x)
-      );
-      const constrainedY = Math.max(
-        0,
-        Math.min(virtualHeight - (height || 100), y)
-      );
+      let constrainedX = x;
+      let constrainedY = y;
+
+      if (type === "line") {
+        // For lines, constrain the endpoints to canvas boundaries
+        const minX = Math.min(startX, endX);
+        const maxX = Math.max(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxY = Math.max(startY, endY);
+
+        // If line extends beyond boundaries, adjust it
+        if (minX < 0) {
+          const offset = -minX;
+          startX += offset;
+          endX += offset;
+        }
+        if (maxX > virtualWidth) {
+          const offset = virtualWidth - maxX;
+          startX += offset;
+          endX += offset;
+        }
+        if (minY < 0) {
+          const offset = -minY;
+          startY += offset;
+          endY += offset;
+        }
+        if (maxY > virtualHeight) {
+          const offset = virtualHeight - maxY;
+          startY += offset;
+          endY += offset;
+        }
+
+        // For lines, use the adjusted coordinates as the shape position
+        constrainedX = Math.min(startX, endX);
+        constrainedY = Math.min(startY, endY);
+      } else {
+        // For other shapes, use the original constraint logic
+        constrainedX = Math.max(0, Math.min(virtualWidth - (width || 100), x));
+        constrainedY = Math.max(
+          0,
+          Math.min(virtualHeight - (height || 100), y)
+        );
+      }
+
+      // For lines, use absolute coordinates (no adjustment needed)
+      let adjustedStartX = startX;
+      let adjustedStartY = startY;
+      let adjustedEndX = endX;
+      let adjustedEndY = endY;
+
+      if (type === "line") {
+        // Ensure all coordinates are valid numbers
+        const validStartX = Number.isFinite(startX) ? startX : x;
+        const validStartY = Number.isFinite(startY) ? startY : y;
+        const validEndX = Number.isFinite(endX) ? endX : x + 100;
+        const validEndY = Number.isFinite(endY) ? endY : y;
+
+        // For lines, use absolute coordinates directly
+        adjustedStartX = validStartX;
+        adjustedStartY = validStartY;
+        adjustedEndX = validEndX;
+        adjustedEndY = validEndY;
+      }
 
       const newShape: Shape = {
         id: generateId(),
@@ -671,7 +736,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           fontSize: 36,
           fill: "#000000",
         }),
-        ...(type === "line" && { startX, startY, endX, endY }),
+        ...(type === "line" && {
+          startX: adjustedStartX,
+          startY: adjustedStartY,
+          endX: adjustedEndX,
+          endY: adjustedEndY,
+        }),
         // Default fill for non-text shapes
         ...(type !== "text" && { fill: "#ffffff" }),
         stroke: "#000000",

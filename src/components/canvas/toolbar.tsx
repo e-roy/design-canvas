@@ -146,13 +146,13 @@ export const Toolbar = memo(function Toolbar({
                   <Circle className="w-4 h-4 mr-2" />
                   Circle
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem
+                <DropdownMenuItem
                   onClick={() => onToolChange("line")}
                   className={currentTool === "line" ? "bg-accent" : ""}
                 >
                   <Minus className="w-4 h-4 mr-2" />
                   Line
-                </DropdownMenuItem> */}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

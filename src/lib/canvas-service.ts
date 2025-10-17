@@ -111,21 +111,23 @@ export class CanvasService {
         Object.entries(shape).filter(([, value]) => value !== undefined)
       );
 
-      const storedShape: StoredShape = {
+      const storedShape = {
         ...filteredShape,
         canvasId: "default", // Set default canvasId for forward compatibility
         version: 1, // Initial version
         createdAt: new Date(),
         updatedAt: new Date(),
         updatedBy: shape.createdBy,
-      } as StoredShape;
+      };
 
-      await setDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), {
+      const firestoreDoc = {
         ...storedShape,
         documentId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      await setDoc(doc(db, CANVAS_SHAPES_COLLECTION, shapeId), firestoreDoc);
 
       // Update document version and last edited info
       await updateDoc(doc(db, CANVAS_DOCUMENTS_COLLECTION, documentId), {
