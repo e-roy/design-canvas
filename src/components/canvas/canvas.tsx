@@ -112,6 +112,28 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   const presenceRef = useRef(presence);
   presenceRef.current = presence;
 
+  // Save viewport to localStorage whenever it changes (throttled)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const timeoutId = setTimeout(() => {
+        try {
+          localStorage.setItem(
+            "design-canvas-viewport",
+            JSON.stringify({
+              x: viewport.x,
+              y: viewport.y,
+              scale: viewport.scale,
+            })
+          );
+        } catch (error) {
+          console.warn("Failed to save viewport to localStorage:", error);
+        }
+      }, 100); // Throttle saves to avoid excessive localStorage writes
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [viewport.x, viewport.y, viewport.scale]);
+
   useEffect(() => {
     const unsubscribe = presenceRef.current.subscribePeers((peers) => {
       setPeerPresence(

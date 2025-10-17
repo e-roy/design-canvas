@@ -68,6 +68,7 @@ interface CanvasActions {
     scale: number;
   }) => Promise<void>;
   setViewport: (viewport: { x: number; y: number; scale: number }) => void;
+  loadViewportFromStorage: () => void;
 
   // Collaboration management
   addCollaborator: (userId: string) => Promise<void>;
@@ -316,6 +317,28 @@ export const useCanvasStore = create<CanvasStore>()(
       set({ viewport });
     },
 
+    loadViewportFromStorage: () => {
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("design-canvas-viewport");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (
+              typeof parsed.x === "number" &&
+              typeof parsed.y === "number" &&
+              typeof parsed.scale === "number"
+            ) {
+              set({
+                viewport: { x: parsed.x, y: parsed.y, scale: parsed.scale },
+              });
+            }
+          }
+        } catch (error) {
+          console.warn("Failed to load viewport from localStorage:", error);
+        }
+      }
+    },
+
     // Collaboration management
     addCollaborator: async (userId) => {
       const { canvasDocument } = get();
@@ -501,6 +524,8 @@ export const useCanvasUpdateViewport = () =>
   useCanvasStore((state) => state.updateViewport);
 export const useCanvasSetViewport = () =>
   useCanvasStore((state) => state.setViewport);
+export const useCanvasLoadViewportFromStorage = () =>
+  useCanvasStore((state) => state.loadViewportFromStorage);
 export const useCanvasAddCollaborator = () =>
   useCanvasStore((state) => state.addCollaborator);
 export const useCanvasRemoveCollaborator = () =>

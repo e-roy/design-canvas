@@ -31,6 +31,7 @@ import {
   useCanvasSetCurrentTool,
   useCanvasSetCanvasDimensions,
   useCanvasSetSelectedShapeIds,
+  useCanvasLoadViewportFromStorage,
 } from "@/store/canvas-store";
 import {
   Canvas,
@@ -50,9 +51,10 @@ export default function CanvasPage() {
   const { user } = useUserStore();
   const { setCursors } = useCursorStore();
 
-  // Sidebar state management - memoized to prevent unnecessary re-renders
+  // Sidebar state management with localStorage persistence
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Use specific canvas store selectors to minimize re-renders
   const canvasDocument = useCanvasDocument();
@@ -71,6 +73,7 @@ export default function CanvasPage() {
   const setCurrentTool = useCanvasSetCurrentTool();
   const setCanvasDimensions = useCanvasSetCanvasDimensions();
   const setSelectedShapeIds = useCanvasSetSelectedShapeIds();
+  const loadViewportFromStorage = useCanvasLoadViewportFromStorage();
 
   // Use refs to access current sidebar state without causing re-renders
   const leftSidebarOpenRef = useRef(leftSidebarOpen);
@@ -115,9 +118,33 @@ export default function CanvasPage() {
     [user]
   );
 
-  // Initialize canvas document ID once
+  // Initialize canvas document ID and load persisted state
   useEffect(() => {
     setDocumentId(MAIN_CANVAS_ID);
+
+    // Load persisted state from localStorage
+    if (typeof window !== "undefined") {
+      try {
+        // Load sidebar states
+        const sidebarState = localStorage.getItem("design-canvas-sidebars");
+        if (sidebarState) {
+          const parsed = JSON.parse(sidebarState);
+          if (typeof parsed.leftOpen === "boolean") {
+            setLeftSidebarOpen(parsed.leftOpen);
+          }
+          if (typeof parsed.rightOpen === "boolean") {
+            setRightSidebarOpen(parsed.rightOpen);
+          }
+        }
+
+        // Load viewport state
+        loadViewportFromStorage();
+      } catch (error) {
+        console.warn("Failed to load persisted state:", error);
+      }
+    }
+
+    setIsLoading(false);
   }, [setDocumentId]);
 
   // Set up cursor tracking when user changes
@@ -243,13 +270,47 @@ export default function CanvasPage() {
     [toggleShapeVisibility]
   );
 
-  // Memoized sidebar toggle handlers
+  // Memoized sidebar toggle handlers with persistence
   const handleLeftSidebarToggle = useCallback(() => {
-    setLeftSidebarOpen((prev) => !prev);
+    setLeftSidebarOpen((prev) => {
+      const newState = !prev;
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const currentState = localStorage.getItem("design-canvas-sidebars");
+          const sidebarState = currentState ? JSON.parse(currentState) : {};
+          sidebarState.leftOpen = newState;
+          localStorage.setItem(
+            "design-canvas-sidebars",
+            JSON.stringify(sidebarState)
+          );
+        } catch (error) {
+          console.warn("Failed to save sidebar state:", error);
+        }
+      }
+      return newState;
+    });
   }, []);
 
   const handleRightSidebarToggle = useCallback(() => {
-    setRightSidebarOpen((prev) => !prev);
+    setRightSidebarOpen((prev) => {
+      const newState = !prev;
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const currentState = localStorage.getItem("design-canvas-sidebars");
+          const sidebarState = currentState ? JSON.parse(currentState) : {};
+          sidebarState.rightOpen = newState;
+          localStorage.setItem(
+            "design-canvas-sidebars",
+            JSON.stringify(sidebarState)
+          );
+        } catch (error) {
+          console.warn("Failed to save sidebar state:", error);
+        }
+      }
+      return newState;
+    });
   }, []);
 
   // Memoized canvas shapes conversion
@@ -330,6 +391,18 @@ export default function CanvasPage() {
         : null,
     [selectedShapeIds, shapes]
   );
+
+  // Show loading state while initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading canvas...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show error if canvas creation/loading fails
   if (canvasError) {
