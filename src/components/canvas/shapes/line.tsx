@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useRef, useState, useCallback, memo } from "react";
-import { Line, Group } from "react-konva";
+import { Line, Group, Circle } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Line as KonvaLine } from "konva/lib/shapes/Line";
+import type { Circle as KonvaCircle } from "konva/lib/shapes/Circle";
 import { Shape } from "@/types";
 
 interface LineProps {
@@ -30,9 +31,15 @@ export const LineShape = memo(function LineShape({
   virtualHeight,
 }: LineProps) {
   const lineRef = useRef<KonvaLine>(null);
+  const startHandleRef = useRef<KonvaCircle>(null);
+  const endHandleRef = useRef<KonvaCircle>(null);
   const [, _setIsDragging] = useState(false);
+  const [draggingHandle, setDraggingHandle] = useState<"start" | "end" | null>(
+    null
+  );
 
-  const handleDragStart = useCallback(() => {
+  // Handle dragging the entire line
+  const handleLineDragStart = useCallback(() => {
     _setIsDragging(true);
     onDragStart?.(shape.id);
 
@@ -43,7 +50,7 @@ export const LineShape = memo(function LineShape({
     }
   }, [shape.id, onDragStart]);
 
-  const handleDragMove = useCallback(() => {
+  const handleLineDragMove = useCallback(() => {
     const line = lineRef.current;
     if (!line) return;
 
@@ -92,7 +99,7 @@ export const LineShape = memo(function LineShape({
     virtualHeight,
   ]);
 
-  const handleDragEnd = useCallback(() => {
+  const handleLineDragEnd = useCallback(() => {
     _setIsDragging(false);
 
     // Get final position and update line coordinates
@@ -135,6 +142,68 @@ export const LineShape = memo(function LineShape({
     onDragEnd,
   ]);
 
+  // Handle dragging the start handle
+  const handleStartHandleDragMove = useCallback(() => {
+    const handle = startHandleRef.current;
+    if (!handle) return;
+
+    let newX = handle.x();
+    let newY = handle.y();
+
+    // Constrain to canvas boundaries
+    newX = Math.max(0, Math.min(virtualWidth, newX));
+    newY = Math.max(0, Math.min(virtualHeight, newY));
+
+    // Update handle position
+    handle.position({ x: newX, y: newY });
+
+    // Update line coordinates
+    onShapeChange?.(shape.id, {
+      startX: newX,
+      startY: newY,
+      x: Math.min(newX, shape.endX ?? 100),
+      y: Math.min(newY, shape.endY ?? 0),
+    });
+  }, [
+    shape.id,
+    shape.endX,
+    shape.endY,
+    onShapeChange,
+    virtualWidth,
+    virtualHeight,
+  ]);
+
+  // Handle dragging the end handle
+  const handleEndHandleDragMove = useCallback(() => {
+    const handle = endHandleRef.current;
+    if (!handle) return;
+
+    let newX = handle.x();
+    let newY = handle.y();
+
+    // Constrain to canvas boundaries
+    newX = Math.max(0, Math.min(virtualWidth, newX));
+    newY = Math.max(0, Math.min(virtualHeight, newY));
+
+    // Update handle position
+    handle.position({ x: newX, y: newY });
+
+    // Update line coordinates
+    onShapeChange?.(shape.id, {
+      endX: newX,
+      endY: newY,
+      x: Math.min(shape.startX ?? 0, newX),
+      y: Math.min(shape.startY ?? 0, newY),
+    });
+  }, [
+    shape.id,
+    shape.startX,
+    shape.startY,
+    onShapeChange,
+    virtualWidth,
+    virtualHeight,
+  ]);
+
   const handleClick = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true;
@@ -143,28 +212,10 @@ export const LineShape = memo(function LineShape({
     [shape.id, onSelect]
   );
 
-  const handleTransform = useCallback(() => {
-    const line = lineRef.current;
-    if (!line) return;
-
-    const newRotation = line.rotation();
-
-    // Reset scale
-    line.scaleX(1);
-    line.scaleY(1);
-
-    onShapeChange?.(shape.id, {
-      rotation: newRotation,
-      x: line.x(),
-      y: line.y(),
-    });
-  }, [shape.id, onShapeChange]);
-
-  const strokeColor = shape.stroke || "#000000";
-  const strokeWidth = shape.strokeWidth || 1;
+  const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
+  const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
 
   // Calculate line points - use absolute coordinates for lines
-  // Lines should use absolute coordinates, not relative to shape position
   const startX = shape.startX ?? 0;
   const startY = shape.startY ?? 0;
   const endX = shape.endX ?? 100;
@@ -203,14 +254,46 @@ export const LineShape = memo(function LineShape({
         strokeWidth={strokeWidth}
         rotation={shape.rotation || 0}
         draggable={true}
-        transformsEnabled="all"
-        onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
-        onDragEnd={handleDragEnd}
+        onDragStart={handleLineDragStart}
+        onDragMove={handleLineDragMove}
+        onDragEnd={handleLineDragEnd}
         onClick={handleClick}
-        onTransform={handleTransform}
-        onTransformEnd={handleTransform}
       />
+
+      {/* Endpoint handles - only show when selected */}
+      {isSelected && (
+        <>
+          {/* Start handle */}
+          <Circle
+            ref={startHandleRef}
+            x={startX}
+            y={startY}
+            radius={40}
+            fill="#3b82f6"
+            stroke="#ffffff"
+            strokeWidth={3}
+            draggable={true}
+            onDragMove={handleStartHandleDragMove}
+            onDragStart={() => setDraggingHandle("start")}
+            onDragEnd={() => setDraggingHandle(null)}
+          />
+
+          {/* End handle */}
+          <Circle
+            ref={endHandleRef}
+            x={endX}
+            y={endY}
+            radius={40}
+            fill="#3b82f6"
+            stroke="#ffffff"
+            strokeWidth={3}
+            draggable={true}
+            onDragMove={handleEndHandleDragMove}
+            onDragStart={() => setDraggingHandle("end")}
+            onDragEnd={() => setDraggingHandle(null)}
+          />
+        </>
+      )}
     </Group>
   );
 });

@@ -250,7 +250,16 @@ export default function CanvasPage() {
   );
 
   const handleToolChange = useCallback(
-    (tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line") => {
+    (
+      tool:
+        | "select"
+        | "pan"
+        | "rectangle"
+        | "circle"
+        | "text"
+        | "line"
+        | "triangle"
+    ) => {
       setCurrentTool(tool);
       canvasRef.current?.setTool(tool);
     },
@@ -477,7 +486,7 @@ export default function CanvasPage() {
                 onShapeCreate={handleShapeCreate}
                 onShapeUpdate={handleShapeUpdate}
                 onShapeDelete={handleShapeDelete}
-                onToolChange={setCurrentTool}
+                onToolChange={handleToolChange}
                 onMouseMove={handleMouseMove}
                 currentUserId={user?.uid}
                 className="w-full h-full"

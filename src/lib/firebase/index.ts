@@ -33,13 +33,13 @@ if (
 
   try {
     connectFirestoreEmulator(db, "localhost", 8080);
-  } catch (error) {
+  } catch (_error) {
     // Already connected to emulator
   }
 
   try {
     connectDatabaseEmulator(realtimeDb, "localhost", 9000);
-  } catch (error) {
+  } catch (_error) {
     // Already connected to emulator
   }
 }

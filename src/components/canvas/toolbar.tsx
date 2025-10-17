@@ -16,12 +16,27 @@ import {
   Type,
   ChevronDown,
   Minus,
+  Triangle,
 } from "lucide-react";
 
 interface ToolbarProps {
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
+  currentTool:
+    | "select"
+    | "pan"
+    | "rectangle"
+    | "circle"
+    | "text"
+    | "line"
+    | "triangle";
   onToolChange: (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
+    tool:
+      | "select"
+      | "pan"
+      | "rectangle"
+      | "circle"
+      | "text"
+      | "line"
+      | "triangle"
   ) => void;
 }
 
@@ -44,6 +59,9 @@ export const Toolbar = memo(function Toolbar({
     }
     if (currentTool === "line") {
       return <Minus className="w-4 h-4" />;
+    }
+    if (currentTool === "triangle") {
+      return <Triangle className="w-4 h-4" />;
     }
     return <Square className="w-4 h-4" />;
   };
@@ -105,6 +123,7 @@ export const Toolbar = memo(function Toolbar({
               variant={
                 currentTool === "rectangle" ||
                 currentTool === "circle" ||
+                currentTool === "triangle" ||
                 currentTool === "line"
                   ? "default"
                   : "outline"
@@ -121,6 +140,7 @@ export const Toolbar = memo(function Toolbar({
                   variant={
                     currentTool === "rectangle" ||
                     currentTool === "circle" ||
+                    currentTool === "triangle" ||
                     currentTool === "line"
                       ? "default"
                       : "outline"
@@ -152,6 +172,13 @@ export const Toolbar = memo(function Toolbar({
                 >
                   <Minus className="w-4 h-4 mr-2" />
                   Line
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onToolChange("triangle")}
+                  className={currentTool === "triangle" ? "bg-accent" : ""}
+                >
+                  <Triangle className="w-4 h-4 mr-2" />
+                  Triangle
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

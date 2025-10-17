@@ -17,7 +17,7 @@ service cloud.firestore {
       let data = request.resource.data;
       return data.keys().hasAll(['canvasId', 'type', 'x', 'y', 'zIndex', 'version']) &&
              data.canvasId is string &&
-             data.type in ['rectangle', 'circle', 'text', 'line'] &&
+             data.type in ['rectangle', 'circle', 'text', 'line', 'triangle'] &&
              data.x is number &&
              data.y is number &&
              data.zIndex is number &&
@@ -47,7 +47,7 @@ service cloud.firestore {
       let data = request.resource.data;
       return data.updatedBy == getUserId() &&
              (!data.keys().hasAny(['canvasId']) || data.canvasId is string) &&
-             (!data.keys().hasAny(['type']) || data.type in ['rectangle', 'circle', 'text', 'line']) &&
+             (!data.keys().hasAny(['type']) || data.type in ['rectangle', 'circle', 'text', 'line', 'triangle']) &&
              (!data.keys().hasAny(['x']) || data.x is number) &&
              (!data.keys().hasAny(['y']) || data.y is number) &&
              (!data.keys().hasAny(['zIndex']) || data.zIndex is number) &&

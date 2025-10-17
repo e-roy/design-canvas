@@ -16,7 +16,7 @@ export interface CanvasDocument {
 
 export interface StoredShape {
   canvasId: string; // NEW: future rooms/pages compatibility
-  type: "rectangle" | "circle" | "text" | "line";
+  type: "rectangle" | "circle" | "text" | "line" | "triangle";
   x: number;
   y: number;
   width?: number;
@@ -112,7 +112,7 @@ export interface CanvasViewport {
 export interface Shape {
   id: string;
   canvasId: string;
-  type: "rectangle" | "circle" | "text" | "line";
+  type: "rectangle" | "circle" | "text" | "line" | "triangle";
   x: number;
   y: number;
   width?: number;
@@ -151,7 +151,14 @@ export interface CanvasState {
   viewport: CanvasViewport;
   isPanMode: boolean;
   isCreatingShape: boolean;
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
+  currentTool:
+    | "select"
+    | "pan"
+    | "rectangle"
+    | "circle"
+    | "text"
+    | "line"
+    | "triangle";
 }
 
 export interface CanvasProps {
@@ -167,7 +174,14 @@ export interface CanvasProps {
   onShapeUpdate?: (shapeId: string, updates: Partial<Shape>) => void;
   onShapeDelete?: (shapeId: string) => void;
   onToolChange?: (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
+    tool:
+      | "select"
+      | "pan"
+      | "rectangle"
+      | "circle"
+      | "text"
+      | "line"
+      | "triangle"
   ) => void;
   onMouseMove?: (position: import("@/types").CursorPosition) => void;
   currentUserId?: string;
@@ -184,7 +198,14 @@ export interface ViewportProps {
   onPanMove?: (delta: Point) => void;
   onPanEnd?: () => void;
   children?: React.ReactNode;
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
+  currentTool:
+    | "select"
+    | "pan"
+    | "rectangle"
+    | "circle"
+    | "text"
+    | "line"
+    | "triangle";
 }
 
 export interface GridProps {

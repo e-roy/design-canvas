@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useRef, useState, useCallback, memo } from "react";
-import { Circle } from "react-konva";
+import React, { useRef, useState, useCallback, memo, useEffect } from "react";
+import { Circle, Transformer } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Circle as KonvaCircle } from "konva/lib/shapes/Circle";
 import { Shape } from "@/types";
+import Konva from "konva";
 
 interface CircleProps {
   shape: Shape;
@@ -30,7 +31,16 @@ export const CircleShape = memo(function CircleShape({
   virtualHeight,
 }: CircleProps) {
   const circleRef = useRef<KonvaCircle>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
   const [, _setIsDragging] = useState(false);
+
+  // Attach transformer to shape when selected
+  useEffect(() => {
+    if (isSelected && transformerRef.current && circleRef.current) {
+      transformerRef.current.nodes([circleRef.current]);
+      transformerRef.current.getLayer()?.batchDraw();
+    }
+  }, [isSelected]);
 
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
@@ -107,23 +117,38 @@ export const CircleShape = memo(function CircleShape({
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
 
   return (
-    <Circle
-      ref={circleRef}
-      x={shape.x}
-      y={shape.y}
-      radius={shape.radius || 50}
-      fill={shape.fill || "#ffffff"}
-      stroke={strokeColor}
-      strokeWidth={strokeWidth}
-      rotation={shape.rotation || 0}
-      draggable={true}
-      transformsEnabled="all"
-      onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
-      onDragEnd={handleDragEnd}
-      onClick={handleClick}
-      onTransform={handleTransform}
-      onTransformEnd={handleTransform}
-    />
+    <>
+      <Circle
+        ref={circleRef}
+        x={shape.x}
+        y={shape.y}
+        radius={shape.radius || 50}
+        fill={shape.fill || "#ffffff"}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        rotation={shape.rotation || 0}
+        draggable={true}
+        transformsEnabled="all"
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        onClick={handleClick}
+        onTransform={handleTransform}
+        onTransformEnd={handleTransform}
+      />
+      {isSelected && (
+        <Transformer
+          ref={transformerRef}
+          boundBoxFunc={(oldBox, newBox) => {
+            // Limit resize
+            if (newBox.width < 10 || newBox.height < 10) {
+              return oldBox;
+            }
+            return newBox;
+          }}
+          rotateEnabled={false}
+        />
+      )}
+    </>
   );
 });

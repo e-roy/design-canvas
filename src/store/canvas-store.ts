@@ -25,7 +25,14 @@ interface CanvasState {
   };
 
   // UI state
-  currentTool: "select" | "pan" | "rectangle" | "circle" | "text" | "line";
+  currentTool:
+    | "select"
+    | "pan"
+    | "rectangle"
+    | "circle"
+    | "text"
+    | "line"
+    | "triangle";
   canvasDimensions: {
     width: number;
     height: number;
@@ -76,7 +83,14 @@ interface CanvasActions {
 
   // UI state management
   setCurrentTool: (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
+    tool:
+      | "select"
+      | "pan"
+      | "rectangle"
+      | "circle"
+      | "text"
+      | "line"
+      | "triangle"
   ) => void;
   setCanvasDimensions: (dimensions: { width: number; height: number }) => void;
   setSelectedShapeIds: (ids: string[]) => void;

@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useRef, useState, useCallback, memo, useEffect } from "react";
-import { Rect, Transformer } from "react-konva";
+import { Line, Transformer } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import type { Rect as KonvaRect } from "konva/lib/shapes/Rect";
+import type { Line as KonvaLine } from "konva/lib/shapes/Line";
 import { Shape } from "@/types";
 import Konva from "konva";
 
-interface RectangleProps {
+interface TriangleProps {
   shape: Shape;
   isSelected: boolean;
   onSelect?: (id: string) => void;
@@ -19,7 +19,7 @@ interface RectangleProps {
   virtualHeight: number;
 }
 
-export const RectangleShape = memo(function RectangleShape({
+export const TriangleShape = memo(function TriangleShape({
   shape,
   isSelected,
   onSelect,
@@ -29,15 +29,15 @@ export const RectangleShape = memo(function RectangleShape({
   onShapeChange,
   virtualWidth,
   virtualHeight,
-}: RectangleProps) {
-  const rectRef = useRef<KonvaRect>(null);
+}: TriangleProps) {
+  const triangleRef = useRef<KonvaLine>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const [, _setIsDragging] = useState(false);
 
   // Attach transformer to shape when selected
   useEffect(() => {
-    if (isSelected && transformerRef.current && rectRef.current) {
-      transformerRef.current.nodes([rectRef.current]);
+    if (isSelected && transformerRef.current && triangleRef.current) {
+      transformerRef.current.nodes([triangleRef.current]);
       transformerRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
@@ -47,25 +47,25 @@ export const RectangleShape = memo(function RectangleShape({
     onDragStart?.(shape.id);
 
     // Bring to front
-    const rect = rectRef.current;
-    if (rect) {
-      rect.moveToTop();
+    const triangle = triangleRef.current;
+    if (triangle) {
+      triangle.moveToTop();
     }
   }, [shape.id, onDragStart]);
 
   const handleDragMove = useCallback(() => {
-    const rect = rectRef.current;
-    if (!rect) return;
+    const triangle = triangleRef.current;
+    if (!triangle) return;
 
-    let newX = rect.x();
-    let newY = rect.y();
+    let newX = triangle.x();
+    let newY = triangle.y();
 
     // Constrain to canvas boundaries
     newX = Math.max(0, Math.min(virtualWidth - (shape.width || 100), newX));
     newY = Math.max(0, Math.min(virtualHeight - (shape.height || 100), newY));
 
     // Update position
-    rect.position({ x: newX, y: newY });
+    triangle.position({ x: newX, y: newY });
 
     // Only call onDragMove for visual updates, not Firebase
     onDragMove?.(shape.id, newX, newY);
@@ -82,10 +82,10 @@ export const RectangleShape = memo(function RectangleShape({
     _setIsDragging(false);
 
     // Get final position and pass it to parent
-    const rect = rectRef.current;
-    if (rect) {
-      const finalX = rect.x();
-      const finalY = rect.y();
+    const triangle = triangleRef.current;
+    if (triangle) {
+      const finalX = triangle.x();
+      const finalY = triangle.y();
       onDragEnd?.(shape.id, finalX, finalY);
     } else {
       onDragEnd?.(shape.id);
@@ -101,37 +101,52 @@ export const RectangleShape = memo(function RectangleShape({
   );
 
   const handleTransform = useCallback(() => {
-    const rect = rectRef.current;
-    if (!rect) return;
+    const triangle = triangleRef.current;
+    if (!triangle) return;
 
-    const newWidth = rect.width() * rect.scaleX();
-    const newHeight = rect.height() * rect.scaleY();
-    const newRotation = rect.rotation();
+    const newWidth = triangle.width() * triangle.scaleX();
+    const newHeight = triangle.height() * triangle.scaleY();
+    const newRotation = triangle.rotation();
 
     // Reset scale
-    rect.scaleX(1);
-    rect.scaleY(1);
+    triangle.scaleX(1);
+    triangle.scaleY(1);
 
     onShapeChange?.(shape.id, {
       width: Math.max(10, newWidth),
       height: Math.max(10, newHeight),
       rotation: newRotation,
-      x: rect.x(),
-      y: rect.y(),
+      x: triangle.x(),
+      y: triangle.y(),
     });
   }, [shape.id, onShapeChange]);
 
   const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
 
+  // Calculate triangle points (relative to shape position)
+  const width = shape.width || 100;
+  const height = shape.height || 100;
+
+  // Triangle points: top, bottom-left, bottom-right (relative coordinates)
+  const points = [
+    width / 2,
+    0, // Top point
+    0,
+    height, // Bottom-left point
+    width,
+    height, // Bottom-right point
+    width / 2,
+    0, // Close the triangle
+  ];
+
   return (
     <>
-      <Rect
-        ref={rectRef}
+      <Line
+        ref={triangleRef}
         x={shape.x}
         y={shape.y}
-        width={shape.width || 100}
-        height={shape.height || 100}
+        points={points}
         fill={shape.fill || "#ffffff"}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
@@ -144,6 +159,7 @@ export const RectangleShape = memo(function RectangleShape({
         onClick={handleClick}
         onTransform={handleTransform}
         onTransformEnd={handleTransform}
+        closed={true}
       />
       {isSelected && (
         <Transformer

@@ -15,7 +15,13 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import { CanvasProps, CanvasViewport, Point, Shape } from "@/types";
 import { Viewport } from "./viewport";
 import { CanvasGrid } from "./grid";
-import { RectangleShape, CircleShape, TextShape, LineShape } from "./shapes";
+import {
+  RectangleShape,
+  CircleShape,
+  TextShape,
+  LineShape,
+  TriangleShape,
+} from "./shapes";
 import { CursorsOverlay } from "./cursor";
 import { CursorPosition } from "@/types";
 import { generateUserColor } from "@/utils/color";
@@ -39,7 +45,14 @@ const MAX_SCALE = 5;
 
 export interface CanvasRef {
   setTool: (
-    tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line"
+    tool:
+      | "select"
+      | "pan"
+      | "rectangle"
+      | "circle"
+      | "text"
+      | "line"
+      | "triangle"
   ) => void;
   getViewport: () => CanvasViewport;
   getShapes: () => Shape[];
@@ -599,6 +612,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               virtualHeight={virtualHeight}
             />
           );
+        case "triangle":
+          return (
+            <TriangleShape
+              key={shape.id}
+              shape={shape}
+              isSelected={isSelected}
+              {...interactionProps}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+            />
+          );
         default:
           return null;
       }
@@ -616,7 +640,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   );
 
   const handleCreateShape = useCallback(
-    (type: "rectangle" | "circle" | "text" | "line", x: number, y: number) => {
+    (
+      type: "rectangle" | "circle" | "text" | "line" | "triangle",
+      x: number,
+      y: number
+    ) => {
       if (currentTool !== type) return;
 
       // Use preview shape dimensions if available, otherwise use defaults
@@ -655,6 +683,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             endX = startX + 100;
             endY = startY;
           }
+        } else if (
+          type === "triangle" &&
+          previewShape.width &&
+          previewShape.height
+        ) {
+          width = previewShape.width;
+          height = previewShape.height;
         }
       }
 
@@ -742,6 +777,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           endX: adjustedEndX,
           endY: adjustedEndY,
         }),
+        ...(type === "triangle" && { width, height }),
         // Default fill for non-text shapes
         ...(type !== "text" && { fill: "#ffffff" }),
         stroke: "#000000",
@@ -807,7 +843,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     setCreationStartPoint(constrainedPoint);
 
-    // Create preview shape (for rectangle, circle, and line)
+    // Create preview shape (for rectangle, circle, line, and triangle)
     const preview: Shape = {
       id: "preview",
       canvasId: "default", // Add canvasId for forward compatibility
@@ -822,6 +858,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         endX: constrainedPoint.x,
         endY: constrainedPoint.y,
       }),
+      ...(currentTool === "triangle" && { width: 0, height: 0 }),
       fill: "#ffffff",
       stroke: "#3b82f6",
       strokeWidth: 2,
@@ -1013,6 +1050,20 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
             }
           : null
       );
+    } else if (currentTool === "triangle") {
+      const width = Math.abs(virtualPoint.x - creationStartPoint.x);
+      const height = Math.abs(virtualPoint.y - creationStartPoint.y);
+      setPreviewShape((prev) =>
+        prev
+          ? {
+              ...prev,
+              x: Math.min(creationStartPoint.x, virtualPoint.x),
+              y: Math.min(creationStartPoint.y, virtualPoint.y),
+              width: Math.max(width, 10),
+              height: Math.max(height, 10),
+            }
+          : null
+      );
     }
 
     // Also track cursor position when creating shapes
@@ -1044,11 +1095,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    // Create final shape (for rectangle, circle, line, text)
+    // Create final shape (for rectangle, circle, line, triangle, text)
     if (
       currentTool === "rectangle" ||
       currentTool === "circle" ||
       currentTool === "line" ||
+      currentTool === "triangle" ||
       currentTool === "text"
     ) {
       handleCreateShape(
@@ -1124,7 +1176,16 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   // Canvas methods for imperative access
   const setTool = useCallback(
-    (tool: "select" | "pan" | "rectangle" | "circle" | "text" | "line") => {
+    (
+      tool:
+        | "select"
+        | "pan"
+        | "rectangle"
+        | "circle"
+        | "text"
+        | "line"
+        | "triangle"
+    ) => {
       setCurrentTool(tool);
       setIsCreatingShape(tool !== "select" && tool !== "pan");
       // Reset creation state when switching tools
@@ -1348,6 +1409,23 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                   previewShape.endX !== undefined &&
                   previewShape.endY !== undefined && (
                     <LineShape
+                      shape={previewShape}
+                      isSelected={false}
+                      onSelect={() => {}}
+                      onDragStart={() => {}}
+                      onDragMove={() => {}}
+                      onDragEnd={() => {}}
+                      onShapeChange={() => {}}
+                      virtualWidth={virtualWidth}
+                      virtualHeight={virtualHeight}
+                    />
+                  )}
+                {previewShape.type === "triangle" &&
+                  previewShape.width !== undefined &&
+                  previewShape.height !== undefined &&
+                  previewShape.width > 0 &&
+                  previewShape.height > 0 && (
+                    <TriangleShape
                       shape={previewShape}
                       isSelected={false}
                       onSelect={() => {}}
