@@ -26,6 +26,11 @@ export async function loginWithCredential(credential: UserCredential) {
 }
 
 export async function login(token: string) {
+  // Skip API call when using emulators - authentication is handled client-side
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true") {
+    return;
+  }
+
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };
@@ -37,6 +42,11 @@ export async function login(token: string) {
 }
 
 export async function logout() {
+  // Skip API call when using emulators - authentication is handled client-side
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true") {
+    return;
+  }
+
   const headers: Record<string, string> = {};
 
   await fetch("/api/logout", {

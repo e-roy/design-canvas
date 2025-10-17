@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authMiddleware } from "next-firebase-auth-edge";
 
 export async function middleware(request: NextRequest) {
+  // Skip middleware when using Firebase emulators
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true") {
+    return NextResponse.next();
+  }
+
   return authMiddleware(request, {
     loginPath: "/api/login",
     logoutPath: "/api/logout",

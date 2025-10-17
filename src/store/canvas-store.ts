@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { canvasService } from "@/lib/canvas-service";
+import { canvasSeeder } from "@/lib/canvas-seeder";
 import { useUserStore } from "./user-store";
 import { CanvasDocument, StoredShape, StoredShapeWithId } from "@/types";
 
@@ -155,7 +156,32 @@ export const useCanvasStore = create<CanvasStore>()(
       set({ isLoading: true, error: null });
 
       try {
-        const result = await canvasService.loadCanvas(documentId);
+        let result = await canvasService.loadCanvas(documentId);
+
+        // If canvas doesn't exist, try to seed it
+        if (!result) {
+          console.log(`Canvas ${documentId} not found, attempting to seed...`);
+
+          // Special handling for main canvas
+          if (documentId === "main-collaborative-canvas") {
+            await canvasSeeder.seedMainCanvas(user.uid);
+          } else {
+            // For other canvases, create with default data
+            await canvasSeeder.seedCustomCanvas(
+              documentId,
+              {
+                name: `Canvas ${documentId}`,
+                description: "A collaborative canvas",
+                isPublic: true,
+              },
+              user.uid
+            );
+          }
+
+          // Try loading again after seeding
+          result = await canvasService.loadCanvas(documentId);
+        }
+
         if (result) {
           set({
             canvasDocument: result.document,
@@ -167,8 +193,7 @@ export const useCanvasStore = create<CanvasStore>()(
           get().setupSubscriptions(documentId);
         } else {
           set({
-            error:
-              "Canvas not found. Please check if the canvas document exists in Firebase.",
+            error: "Failed to create or load canvas",
             isLoading: false,
           });
         }

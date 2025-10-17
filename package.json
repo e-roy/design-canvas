@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:emulators": "concurrently \"firebase emulators:start\" \"next dev --turbopack\"",
+    "emulators": "firebase emulators:start",
+    "emulators:export": "firebase emulators:export ./firebase-export",
+    "emulators:import": "firebase emulators:start --import ./firebase-export",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
@@ -70,6 +74,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "^1.0.0",
+    "concurrently": "^9.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.5",
     "tailwindcss": "^4",

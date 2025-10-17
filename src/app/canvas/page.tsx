@@ -331,51 +331,16 @@ export default function CanvasPage() {
     [selectedShapeIds, shapes]
   );
 
-  // Show error if canvas doesn't exist (user needs to create it manually)
-  if (
-    canvasError ===
-    "Canvas not found. Please check if the canvas document exists in Firebase."
-  ) {
+  // Show error if canvas creation/loading fails
+  if (canvasError) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="text-center p-6">
-            <h2 className="text-xl font-semibold mb-4">
-              Canvas Setup Required
-            </h2>
+            <h2 className="text-xl font-semibold mb-4">Canvas Error</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              The collaborative canvas document needs to be created in Firebase.
+              {canvasError}
             </p>
-            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-left text-sm">
-              <p className="font-medium mb-2">To create the canvas document:</p>
-              <ol className="list-decimal list-inside space-y-1 text-gray-600 dark:text-gray-400">
-                <li>Go to Firebase Console → Firestore Database</li>
-                <li>
-                  Create a new document in &apos;canvas_documents&apos;
-                  collection
-                </li>
-                <li>
-                  Set Document ID:&nbsp;
-                  <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">
-                    main-collaborative-canvas
-                  </code>
-                </li>
-                <li>Add these fields:</li>
-              </ol>
-              <pre className="mt-2 text-xs bg-gray-200 dark:bg-gray-700 p-2 rounded overflow-x-auto">
-                {`{
-  "name": "Main Collaborative Canvas",
-  "description": "A collaborative canvas for real-time editing",
-  "createdBy": "your-user-id",
-  "createdAt": "2025-01-01T00:00:00.000Z",
-  "updatedAt": "2025-01-01T00:00:00.000Z",
-  "lastEditedBy": "your-user-id",
-  "collaborators": ["your-user-id"],
-  "isPublic": true,
-  "version": 1
-}`}
-              </pre>
-            </div>
             <Button onClick={() => window.location.reload()} className="mt-4">
               Retry Loading Canvas
             </Button>

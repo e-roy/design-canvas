@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getDatabase, connectDatabaseEmulator } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -20,6 +20,29 @@ const app =
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const realtimeDb = getDatabase(app);
+
+// Connect to emulators in development
+if (
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
+) {
+  // Only connect to emulators if not already connected
+  if (!auth.emulatorConfig) {
+    connectAuthEmulator(auth, "http://localhost:9099");
+  }
+
+  try {
+    connectFirestoreEmulator(db, "localhost", 8080);
+  } catch (error) {
+    // Already connected to emulator
+  }
+
+  try {
+    connectDatabaseEmulator(realtimeDb, "localhost", 9000);
+  } catch (error) {
+    // Already connected to emulator
+  }
+}
 
 export default app;
 
