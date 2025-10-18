@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import type { Shape } from "@/types";
 import { generateUserColor } from "@/utils/color";
-import { GHOST_SHAPE_PROPS } from "@/lib/canvas/constants";
+import { GHOST_SHAPE_PROPS } from "../canvas-lib/constants";
 
 interface UseCanvasPresenceProps {
   user: { uid: string; displayName?: string; email?: string } | null;

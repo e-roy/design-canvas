@@ -11,16 +11,16 @@ import React, {
 import { Stage, Layer, Rect } from "react-konva";
 import Konva from "konva";
 import { CanvasProps, CanvasViewport, Shape } from "@/types";
-import { Viewport } from "./viewport";
-import { CanvasGrid } from "./grid";
+import { Viewport } from "../canvas/viewport";
+import { CanvasGrid } from "../canvas/grid";
 import {
   RectangleShape,
   CircleShape,
   TextShape,
   LineShape,
   TriangleShape,
-} from "./shapes";
-import { CursorsOverlay } from "./cursor";
+} from "../canvas/shapes";
+import { CursorsOverlay } from "../canvas/cursor";
 import { CursorPosition } from "@/types";
 import {
   useCanvasViewport,
@@ -38,12 +38,12 @@ import {
   useCanvasCreation,
   useCanvasViewport as useCanvasViewportHook,
   useCanvasPresence,
-} from "@/hooks/canvas";
+} from "@/components/refactored-test/canvas-hooks";
 import {
   CANVAS_CONSTANTS,
   createMouseHandlers,
   createShapeHandlers,
-} from "@/lib/canvas";
+} from "./canvas-lib";
 
 export interface CanvasRef {
   setTool: (

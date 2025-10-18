@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Shape } from "@/types";
 import { updateShape } from "@/services/shapeTransactions";
-import { CANVAS_CONSTANTS } from "@/lib/canvas/constants";
+import { CANVAS_CONSTANTS } from "../canvas-lib/constants";
 
 interface UseCanvasDragProps {
   shapes: Shape[];

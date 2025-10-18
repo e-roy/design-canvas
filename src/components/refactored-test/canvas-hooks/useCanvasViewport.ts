@@ -1,10 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import type { CanvasViewport, Point, CursorPosition } from "@/types";
-import {
-  constrainViewport,
-  calculateZoomViewport,
-} from "@/lib/canvas/canvas-utils";
-import { CANVAS_CONSTANTS } from "@/lib/canvas/constants";
+import { constrainViewport, calculateZoomViewport } from "../canvas-lib";
+import { CANVAS_CONSTANTS } from "../canvas-lib/constants";
 
 interface UseCanvasViewportProps {
   width: number;

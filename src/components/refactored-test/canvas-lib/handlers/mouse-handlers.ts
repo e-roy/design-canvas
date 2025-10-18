@@ -1,6 +1,6 @@
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { CanvasViewport, Point, CursorPosition } from "@/types";
-import { screenToVirtual } from "@/lib/canvas/canvas-utils";
+import { screenToVirtual } from "../canvas-utils";
 
 interface MouseHandlersProps {
   viewport: CanvasViewport;

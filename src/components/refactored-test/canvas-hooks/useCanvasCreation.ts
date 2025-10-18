@@ -4,8 +4,8 @@ import {
   createShape,
   createPreviewShape,
   updatePreviewShape,
-} from "@/lib/canvas/shape-utils";
-import { CANVAS_CONSTANTS } from "@/lib/canvas/constants";
+} from "../canvas-lib";
+import { CANVAS_CONSTANTS } from "../canvas-lib/constants";
 
 interface UseCanvasCreationProps {
   currentTool: string;
