@@ -25,7 +25,7 @@ export const CustomSidebarTrigger = memo(function CustomSidebarTrigger({
       variant="ghost"
       size="icon"
       className={cn(
-        "size-8 transition-all duration-200 ease-linear z-50",
+        "size-10 transition-all duration-200 ease-linear z-50 glass-3 rounded-xl shadow-lg backdrop-blur-sm hover:glass-4",
         side === "left"
           ? cn(
               "fixed top-4 transition-all duration-200 ease-linear",

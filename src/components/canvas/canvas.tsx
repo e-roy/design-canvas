@@ -223,6 +223,53 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     []
   );
 
+  // Helper function to check if a shape intersects with selection rectangle
+  const doesShapeIntersectRect = useCallback(
+    (
+      shape: Shape,
+      rect: { x: number; y: number; width: number; height: number },
+      allShapes: Shape[]
+    ): boolean => {
+      // Get shape's world position
+      const shapeWorld = getShapeWorldPosition(shape, allShapes);
+      const shapeX = shapeWorld.x;
+      const shapeY = shapeWorld.y;
+
+      // Get shape bounds based on type
+      let shapeWidth = 0;
+      let shapeHeight = 0;
+
+      if (shape.type === "circle" && shape.radius) {
+        // For circles, use radius as bounding box
+        shapeWidth = shape.radius * 2;
+        shapeHeight = shape.radius * 2;
+      } else if (
+        shape.type === "line" &&
+        shape.startX !== undefined &&
+        shape.endX !== undefined &&
+        shape.startY !== undefined &&
+        shape.endY !== undefined
+      ) {
+        // For lines, calculate bounding box from endpoints
+        shapeWidth = Math.abs(shape.endX - shape.startX);
+        shapeHeight = Math.abs(shape.endY - shape.startY);
+      } else {
+        // For other shapes, use width and height
+        shapeWidth = shape.width || 100;
+        shapeHeight = shape.height || 100;
+      }
+
+      // Check if rectangles intersect (AABB collision detection)
+      return !(
+        shapeX + shapeWidth < rect.x ||
+        shapeX > rect.x + rect.width ||
+        shapeY + shapeHeight < rect.y ||
+        shapeY > rect.y + rect.height
+      );
+    },
+    [getShapeWorldPosition]
+  );
+
   // Helper function to check if a shape's center is inside a frame
   const isShapeCenterInFrame = useCallback(
     (shape: Shape, frame: Shape, allShapes: Shape[]): boolean => {
@@ -378,6 +425,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   const [creationStartPoint, setCreationStartPoint] = useState<Point | null>(
     null
   );
+
+  // Selection rectangle state for multi-select
+  const [selectionRect, setSelectionRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const selectionStartRef = useRef<Point | null>(null);
+  const justFinishedSelectingRef = useRef(false);
 
   // Use external shapes if provided, otherwise use empty array
   // Memoize ghost shapes to prevent unnecessary re-creation
@@ -606,6 +664,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   // Track hierarchical containers being dragged (frames/groups with children)
   const hierarchicalDraggingRef = useRef<Set<string>>(new Set());
 
+  // Track initial positions of selected shapes for group dragging
+  const groupDragStartPositions = useRef<
+    Record<string, { x: number; y: number }>
+  >({});
+  const groupDragInitialPosition = useRef<{ x: number; y: number } | null>(
+    null
+  );
+
+  // Store copied shapes for paste functionality
+  const copiedShapes = useRef<Shape[]>([]);
+
   const handleShapeDragStart = useCallback(
     (id: string) => {
       // Check if this is a hierarchical container (frame/group with children in hierarchical mode)
@@ -627,6 +696,28 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       setDraggedShapeId(id);
       activeDraggingShapes.current.add(id);
 
+      // If multiple shapes are selected, track their starting positions for group dragging
+      if (selectedShapeIds.length > 1 && selectedShapeIds.includes(id)) {
+        const startPositions: Record<string, { x: number; y: number }> = {};
+        selectedShapeIds.forEach((shapeId) => {
+          const s = shapes.find((sh) => sh.id === shapeId);
+          if (s) {
+            const worldPos = getShapeWorldPosition(s, shapes);
+            startPositions[shapeId] = { x: worldPos.x, y: worldPos.y };
+          }
+        });
+        groupDragStartPositions.current = startPositions;
+
+        // Store the initial position of the dragged shape
+        if (shape) {
+          const worldPos = getShapeWorldPosition(shape, shapes);
+          groupDragInitialPosition.current = { x: worldPos.x, y: worldPos.y };
+        }
+      } else {
+        groupDragStartPositions.current = {};
+        groupDragInitialPosition.current = null;
+      }
+
       // Update presence gesture
       if (shape) {
         presence.updateGesture({
@@ -642,7 +733,13 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         });
       }
     },
-    [shapes, presence, useHierarchicalRendering]
+    [
+      shapes,
+      presence,
+      useHierarchicalRendering,
+      selectedShapeIds,
+      getShapeWorldPosition,
+    ]
   );
 
   // Throttle RTDB updates to 30 FPS for better performance
@@ -650,6 +747,77 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   const handleShapeDragMove = useCallback(
     (id: string, x: number, y: number) => {
+      // If dragging multiple selected shapes, move them all together
+      if (
+        selectedShapeIds.length > 1 &&
+        selectedShapeIds.includes(id) &&
+        groupDragInitialPosition.current
+      ) {
+        // Calculate the delta from the initial position
+        const deltaX = x - groupDragInitialPosition.current.x;
+        const deltaY = y - groupDragInitialPosition.current.y;
+
+        // Update all selected shapes
+        const newLocalDragState: Record<string, { x: number; y: number }> = {};
+        selectedShapeIds.forEach((shapeId) => {
+          const startPos = groupDragStartPositions.current[shapeId];
+          if (startPos) {
+            newLocalDragState[shapeId] = {
+              x: startPos.x + deltaX,
+              y: startPos.y + deltaY,
+            };
+          }
+        });
+
+        setLocalDragState((prev) => ({
+          ...prev,
+          ...newLocalDragState,
+        }));
+
+        // Update RTDB for real-time collaboration and Firestore for persistence
+        selectedShapeIds.forEach((shapeId) => {
+          if (rtdbUpdateRef.current[shapeId]) {
+            clearTimeout(rtdbUpdateRef.current[shapeId]);
+          }
+
+          rtdbUpdateRef.current[shapeId] = setTimeout(() => {
+            const shape = shapes.find((s) => s.id === shapeId);
+            const newPos = newLocalDragState[shapeId];
+            if (shape && newPos) {
+              // Update RTDB for real-time collaboration
+              presence.updateGesture({
+                type: "move",
+                shapeId: shapeId,
+                draft: {
+                  x: newPos.x,
+                  y: newPos.y,
+                  width: shape.width || 100,
+                  height: shape.height || 100,
+                  rotation: shape.rotation || 0,
+                },
+              });
+
+              // Convert world coordinates to local coordinates if shape has a parent
+              const localPos = shape.parentId
+                ? worldToLocalPosition(
+                    newPos.x,
+                    newPos.y,
+                    shape.parentId,
+                    externalShapes
+                  )
+                : { x: newPos.x, y: newPos.y };
+
+              // Update Firestore with throttled updates to maintain positions
+              commitThrottled(shapeId, { x: localPos.x, y: localPos.y });
+            }
+            delete rtdbUpdateRef.current[shapeId];
+          }, 25);
+        });
+
+        return;
+      }
+
+      // Single shape drag (original behavior)
       // Update local drag state for instant visual feedback
       setLocalDragState((prev) => ({
         ...prev,
@@ -704,6 +872,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       }
     },
     [
+      selectedShapeIds,
       shapes,
       externalShapes,
       presence,
@@ -715,6 +884,69 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
   const handleShapeDragEnd = useCallback(
     async (id: string, finalX?: number, finalY?: number) => {
+      // Handle group drag end
+      if (
+        selectedShapeIds.length > 1 &&
+        selectedShapeIds.includes(id) &&
+        groupDragInitialPosition.current &&
+        finalX !== undefined &&
+        finalY !== undefined
+      ) {
+        // Clear any pending RTDB updates for all selected shapes
+        selectedShapeIds.forEach((shapeId) => {
+          if (rtdbUpdateRef.current[shapeId]) {
+            clearTimeout(rtdbUpdateRef.current[shapeId]);
+            delete rtdbUpdateRef.current[shapeId];
+          }
+        });
+
+        // Calculate the delta from the initial position
+        const deltaX = finalX - groupDragInitialPosition.current.x;
+        const deltaY = finalY - groupDragInitialPosition.current.y;
+
+        // Clear local drag state for all selected shapes
+        setLocalDragState((prev) => {
+          const newState = { ...prev };
+          selectedShapeIds.forEach((shapeId) => {
+            delete newState[shapeId];
+          });
+          return newState;
+        });
+
+        // Update all selected shapes with their final positions immediately
+        selectedShapeIds.forEach((shapeId) => {
+          const shape = shapes.find((s) => s.id === shapeId);
+          const startPos = groupDragStartPositions.current[shapeId];
+          if (shape && startPos && user?.uid && onShapeUpdate) {
+            const newX = startPos.x + deltaX;
+            const newY = startPos.y + deltaY;
+
+            // Convert world coordinates to local coordinates if shape has a parent
+            const localPos = shape.parentId
+              ? worldToLocalPosition(newX, newY, shape.parentId, externalShapes)
+              : { x: newX, y: newY };
+
+            // Save final position to database
+            onShapeUpdate(shapeId, { x: localPos.x, y: localPos.y });
+            pendingDragEnds.current.add(shapeId);
+          }
+        });
+
+        // Clear group drag state
+        groupDragStartPositions.current = {};
+        groupDragInitialPosition.current = null;
+
+        // Clear presence gesture
+        presence.updateGesture(null);
+
+        // Clear drag state
+        setDraggedShapeId(null);
+        setHoveredFrameId(null);
+
+        return;
+      }
+
+      // Single shape drag (original behavior)
       // Check if this was a hierarchical container drag
       const wasHierarchicalDrag = hierarchicalDraggingRef.current.has(id);
       if (wasHierarchicalDrag) {
@@ -821,6 +1053,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       setHoveredFrameId(null);
     },
     [
+      selectedShapeIds,
       presence,
       user?.uid,
       onShapeUpdate,
@@ -1188,72 +1421,96 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     ]
   );
 
-  // Handle stage mouse down for starting shape creation
-  const handleStageMouseDown = useCallback(() => {
-    if (
-      !isCreatingShape ||
-      currentTool === "select" ||
-      currentTool === "pan" ||
-      currentTool === "text" ||
-      currentTool === "ai-chat"
-    )
-      return;
+  // Handle stage mouse down for starting shape creation or selection
+  const handleStageMouseDown = useCallback(
+    (e: KonvaEventObject<MouseEvent>) => {
+      const stage = stageRef.current;
+      if (!stage) return;
 
-    const stage = stageRef.current;
-    if (!stage) return;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
 
-    // Clear selection when creating new shape
-    setSelectedShapeIds([]);
+      // Convert screen coordinates to virtual canvas coordinates
+      const virtualPoint = {
+        x: pointer.x / viewport.scale + viewport.x,
+        y: pointer.y / viewport.scale + viewport.y,
+      };
 
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
+      // Check if we clicked on the background or grid (not a shape)
+      const targetName = e.target.name();
+      const isBackgroundOrGrid =
+        e.target === stage ||
+        targetName === "canvas-background" ||
+        e.target.getClassName() === "Line"; // Grid lines
 
-    // Convert screen coordinates to virtual canvas coordinates
-    const virtualPoint = {
-      x: pointer.x / viewport.scale + viewport.x,
-      y: pointer.y / viewport.scale + viewport.y,
-    };
+      // Handle selection rectangle in select mode when clicking on background
+      if (currentTool === "select" && isBackgroundOrGrid) {
+        setIsSelecting(true);
+        selectionStartRef.current = virtualPoint;
+        setSelectionRect({
+          x: virtualPoint.x,
+          y: virtualPoint.y,
+          width: 0,
+          height: 0,
+        });
+        return;
+      }
 
-    // Constrain creation start point to canvas boundaries
-    const constrainedPoint = {
-      x: Math.max(0, Math.min(virtualWidth - 100, virtualPoint.x)),
-      y: Math.max(0, Math.min(virtualHeight - 100, virtualPoint.y)),
-    };
+      // Shape creation tools
+      if (
+        !isCreatingShape ||
+        currentTool === "select" ||
+        currentTool === "pan" ||
+        currentTool === "text" ||
+        currentTool === "ai-chat"
+      )
+        return;
 
-    setCreationStartPoint(constrainedPoint);
+      // Clear selection when creating new shape
+      setSelectedShapeIds([]);
 
-    // Create preview shape (for rectangle, circle, line, triangle, and frame)
-    const preview: Shape = {
-      id: "preview",
-      canvasId: "default", // Add canvasId for forward compatibility
-      type: currentTool,
-      x: constrainedPoint.x,
-      y: constrainedPoint.y,
-      ...(currentTool === "rectangle" && { width: 0, height: 0 }),
-      ...(currentTool === "frame" && { width: 0, height: 0 }),
-      ...(currentTool === "circle" && { radius: 0 }),
-      ...(currentTool === "line" && {
-        startX: constrainedPoint.x,
-        startY: constrainedPoint.y,
-        endX: constrainedPoint.x,
-        endY: constrainedPoint.y,
-      }),
-      ...(currentTool === "triangle" && { width: 0, height: 0 }),
-      fill: currentTool === "frame" ? "#ffffff" : "#D9D9D9",
-      stroke: "#3b82f6",
-      strokeWidth: 2,
-      zIndex: Date.now(), // Add zIndex for proper stacking
-    };
+      // Constrain creation start point to canvas boundaries
+      const constrainedPoint = {
+        x: Math.max(0, Math.min(virtualWidth - 100, virtualPoint.x)),
+        y: Math.max(0, Math.min(virtualHeight - 100, virtualPoint.y)),
+      };
 
-    setPreviewShape(preview);
-  }, [
-    isCreatingShape,
-    currentTool,
-    viewport,
-    virtualWidth,
-    virtualHeight,
-    setSelectedShapeIds,
-  ]);
+      setCreationStartPoint(constrainedPoint);
+
+      // Create preview shape (for rectangle, circle, line, triangle, and frame)
+      const preview: Shape = {
+        id: "preview",
+        canvasId: "default", // Add canvasId for forward compatibility
+        type: currentTool,
+        x: constrainedPoint.x,
+        y: constrainedPoint.y,
+        ...(currentTool === "rectangle" && { width: 0, height: 0 }),
+        ...(currentTool === "frame" && { width: 0, height: 0 }),
+        ...(currentTool === "circle" && { radius: 0 }),
+        ...(currentTool === "line" && {
+          startX: constrainedPoint.x,
+          startY: constrainedPoint.y,
+          endX: constrainedPoint.x,
+          endY: constrainedPoint.y,
+        }),
+        ...(currentTool === "triangle" && { width: 0, height: 0 }),
+        fill: currentTool === "frame" ? "#ffffff" : "#D9D9D9",
+        stroke: "#3b82f6",
+        strokeWidth: 2,
+        zIndex: Date.now(), // Add zIndex for proper stacking
+      };
+
+      setPreviewShape(preview);
+    },
+    [
+      isCreatingShape,
+      currentTool,
+      viewport,
+      virtualWidth,
+      virtualHeight,
+      setSelectedShapeIds,
+    ]
+  );
 
   // Throttled mouse move handler to reduce re-renders
   const lastMouseMoveTime = useRef(0);
@@ -1343,6 +1600,124 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     }
   }, []); // Empty dependency array - use refs for current handlers
 
+  // Set up keyboard event listener for delete, copy, and paste
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInputElement =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      // Don't handle keyboard shortcuts when typing in an input
+      if (isInputElement) return;
+
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+      // Copy: Ctrl+C or Cmd+C
+      if (
+        modKey &&
+        e.key.toLowerCase() === "c" &&
+        selectedShapeIds.length > 0
+      ) {
+        e.preventDefault();
+
+        // Copy selected shapes
+        const shapesToCopy = shapes.filter((shape) =>
+          selectedShapeIds.includes(shape.id)
+        );
+
+        // Store deep copies of the shapes
+        copiedShapes.current = shapesToCopy.map((shape) => ({
+          ...shape,
+          // Store world coordinates for pasting
+          x: getShapeWorldPosition(shape, shapes).x,
+          y: getShapeWorldPosition(shape, shapes).y,
+        }));
+
+        return;
+      }
+
+      // Paste: Ctrl+V or Cmd+V
+      if (
+        modKey &&
+        e.key.toLowerCase() === "v" &&
+        copiedShapes.current.length > 0
+      ) {
+        e.preventDefault();
+
+        if (!user?.uid || !onShapeCreate) return;
+
+        const newShapeIds: string[] = [];
+        const offset = 20; // Offset pasted shapes by 20 pixels
+
+        // Create new shapes from copied ones
+        copiedShapes.current.forEach((copiedShape) => {
+          const newId = `shape_${Date.now()}_${Math.random()
+            .toString(36)
+            .substr(2, 9)}`;
+
+          const newShape: Shape = {
+            ...copiedShape,
+            id: newId,
+            x: copiedShape.x + offset,
+            y: copiedShape.y + offset,
+            zIndex: Date.now(), // New zIndex for proper stacking
+            // Remove parent relationship for simplicity (paste at root level)
+            parentId: undefined,
+          };
+
+          // Create the shape in the database
+          onShapeCreate(newShape);
+          newShapeIds.push(newId);
+        });
+
+        // Select the newly pasted shapes
+        setTimeout(() => {
+          setSelectedShapeIds(newShapeIds);
+          presence.updateSelection(newShapeIds);
+        }, 100);
+
+        return;
+      }
+
+      // Delete: Delete or Backspace key
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedShapeIds.length > 0
+      ) {
+        e.preventDefault();
+
+        // Delete all selected shapes
+        selectedShapeIds.forEach((shapeId) => {
+          if (onShapeDelete) {
+            onShapeDelete(shapeId);
+          }
+        });
+
+        // Clear selection
+        setSelectedShapeIds([]);
+        presence.updateSelection([]);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    selectedShapeIds,
+    shapes,
+    onShapeDelete,
+    onShapeCreate,
+    setSelectedShapeIds,
+    presence,
+    user?.uid,
+    getShapeWorldPosition,
+  ]);
+
   // Cleanup effect to handle edge cases
   useEffect(() => {
     const pendingDragEndsRef = pendingDragEnds.current;
@@ -1355,29 +1730,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     };
   }, []);
 
-  // Handle stage mouse move for updating preview shape and cursor tracking
+  // Handle stage mouse move for updating preview shape, selection rectangle, and cursor tracking
   const handleStageMouseMove = useCallback(() => {
-    if (!isCreatingShape || !creationStartPoint || !previewShape) {
-      // Track cursor position for real-time collaboration even when not creating shapes
-      if (onMouseMove) {
-        const stage = stageRef.current;
-        if (!stage) return;
-
-        const pointer = stage.getPointerPosition();
-        if (!pointer) return;
-
-        // Convert screen coordinates to virtual canvas coordinates
-        const virtualPosition: CursorPosition = {
-          x: pointer.x / viewport.scale + viewport.x,
-          y: pointer.y / viewport.scale + viewport.y,
-          timestamp: Date.now(),
-        };
-
-        onMouseMove?.(virtualPosition, viewport);
-      }
-      return;
-    }
-
     const stage = stageRef.current;
     if (!stage) return;
 
@@ -1389,6 +1743,33 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       x: pointer.x / viewport.scale + viewport.x,
       y: pointer.y / viewport.scale + viewport.y,
     };
+
+    // Update selection rectangle if we're selecting
+    if (isSelecting && selectionStartRef.current) {
+      const start = selectionStartRef.current;
+      const x = Math.min(start.x, virtualPoint.x);
+      const y = Math.min(start.y, virtualPoint.y);
+      const width = Math.abs(virtualPoint.x - start.x);
+      const height = Math.abs(virtualPoint.y - start.y);
+
+      setSelectionRect({ x, y, width, height });
+      return;
+    }
+
+    if (!isCreatingShape || !creationStartPoint || !previewShape) {
+      // Track cursor position for real-time collaboration even when not creating shapes
+      if (onMouseMove) {
+        // Convert screen coordinates to virtual canvas coordinates
+        const virtualPosition: CursorPosition = {
+          x: virtualPoint.x,
+          y: virtualPoint.y,
+          timestamp: Date.now(),
+        };
+
+        onMouseMove?.(virtualPosition, viewport);
+      }
+      return;
+    }
 
     // Update preview shape based on drag distance
     if (currentTool === "rectangle" || currentTool === "frame") {
@@ -1466,8 +1847,46 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     onMouseMove,
   ]);
 
-  // Handle stage mouse up for finalizing shape creation
+  // Handle stage mouse up for finalizing shape creation or selection
   const handleStageMouseUp = useCallback(() => {
+    // Handle selection rectangle finalization
+    if (
+      isSelecting &&
+      selectionRect &&
+      selectionRect.width > 5 &&
+      selectionRect.height > 5
+    ) {
+      // Find all shapes that intersect with the selection rectangle
+      const selectedIds = shapes
+        .filter((shape) => doesShapeIntersectRect(shape, selectionRect, shapes))
+        .map((shape) => shape.id);
+
+      setSelectedShapeIds(selectedIds);
+
+      // Update presence selection
+      presence.updateSelection(selectedIds);
+
+      // Reset selection state
+      setIsSelecting(false);
+      setSelectionRect(null);
+      selectionStartRef.current = null;
+
+      // Mark that we just finished selecting to prevent immediate deselection in onClick
+      justFinishedSelectingRef.current = true;
+      setTimeout(() => {
+        justFinishedSelectingRef.current = false;
+      }, 50);
+      return;
+    }
+
+    // Reset selection state even if rectangle was too small
+    if (isSelecting) {
+      setIsSelecting(false);
+      setSelectionRect(null);
+      selectionStartRef.current = null;
+      return;
+    }
+
     if (!isCreatingShape || !creationStartPoint || !previewShape) return;
 
     const stage = stageRef.current;
@@ -1496,6 +1915,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     setCreationStartPoint(null);
     setPreviewShape(null);
   }, [
+    isSelecting,
+    selectionRect,
+    shapes,
+    doesShapeIntersectRect,
+    setSelectedShapeIds,
+    presence,
     isCreatingShape,
     creationStartPoint,
     previewShape,
@@ -1504,57 +1929,76 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   ]);
 
   // Handle stage click for creating shapes and deselecting objects
-  const handleStageClick = useCallback(() => {
-    // If we're in select mode, deselect all objects when clicking on empty area
-    if (currentTool === "select") {
-      setSelectedShapeIds([]);
-      return;
-    }
+  const handleStageClick = useCallback(
+    (e: KonvaEventObject<MouseEvent>) => {
+      // If we're in select mode, deselect all objects when clicking on empty area
+      // But don't deselect if we just finished a drag selection
+      if (currentTool === "select") {
+        // Don't deselect if we just finished a drag selection
+        if (justFinishedSelectingRef.current) {
+          return;
+        }
 
-    // If we're in pan mode, don't do anything
-    if (currentTool === "pan") {
-      return;
-    }
+        // Check if we clicked on the background
+        const targetName = e.target.name();
+        const isBackground =
+          e.target === e.target.getStage() ||
+          targetName === "canvas-background" ||
+          e.target.getClassName() === "Line";
 
-    // For shape creation tools, handle shape creation
-    if (!isCreatingShape) return;
+        // Only deselect if we clicked on background
+        if (isBackground) {
+          setSelectedShapeIds([]);
+        }
+        return;
+      }
 
-    // For text, create on click since it doesn't need drag sizing
-    if (currentTool === "text") {
-      const stage = stageRef.current;
-      if (!stage) return;
+      // If we're in pan mode, don't do anything
+      if (currentTool === "pan") {
+        return;
+      }
 
-      setSelectedShapeIds([]);
+      // For shape creation tools, handle shape creation
+      if (!isCreatingShape) return;
 
-      const pointer = stage.getPointerPosition();
-      if (!pointer) return;
+      // For text, create on click since it doesn't need drag sizing
+      if (currentTool === "text") {
+        const stage = stageRef.current;
+        if (!stage) return;
 
-      const virtualPoint = {
-        x: pointer.x / viewport.scale + viewport.x,
-        y: pointer.y / viewport.scale + viewport.y,
-      };
+        setSelectedShapeIds([]);
 
-      // Constrain text position to canvas boundaries
-      const constrainedX = Math.max(
-        0,
-        Math.min(virtualWidth - 100, virtualPoint.x)
-      );
-      const constrainedY = Math.max(
-        0,
-        Math.min(virtualHeight - 50, virtualPoint.y)
-      );
+        const pointer = stage.getPointerPosition();
+        if (!pointer) return;
 
-      handleCreateShape(currentTool, constrainedX, constrainedY);
-    }
-  }, [
-    currentTool,
-    isCreatingShape,
-    viewport,
-    handleCreateShape,
-    virtualWidth,
-    virtualHeight,
-    setSelectedShapeIds,
-  ]);
+        const virtualPoint = {
+          x: pointer.x / viewport.scale + viewport.x,
+          y: pointer.y / viewport.scale + viewport.y,
+        };
+
+        // Constrain text position to canvas boundaries
+        const constrainedX = Math.max(
+          0,
+          Math.min(virtualWidth - 100, virtualPoint.x)
+        );
+        const constrainedY = Math.max(
+          0,
+          Math.min(virtualHeight - 50, virtualPoint.y)
+        );
+
+        handleCreateShape(currentTool, constrainedX, constrainedY);
+      }
+    },
+    [
+      currentTool,
+      isCreatingShape,
+      viewport,
+      handleCreateShape,
+      virtualWidth,
+      virtualHeight,
+      setSelectedShapeIds,
+    ]
+  );
 
   // Canvas methods for imperative access
   const setTool = useCallback(
@@ -1682,8 +2126,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     (delta: Point) => {
       const newViewport = {
         ...viewport,
-        x: viewport.x + delta.x / viewport.scale,
-        y: viewport.y + delta.y / viewport.scale,
+        x: viewport.x - delta.x / viewport.scale,
+        y: viewport.y - delta.y / viewport.scale,
       };
 
       handleViewportChange(newViewport);
@@ -1713,6 +2157,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         onClick={handleStageClick}
         style={{
           cursor: isPanMode
+            ? "grabbing"
+            : currentTool === "pan"
             ? "grab"
             : isCreatingShape
             ? "crosshair"
@@ -1736,12 +2182,94 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           >
             {/* Canvas background */}
             <Rect
+              name="canvas-background"
               x={0}
               y={0}
               width={virtualWidth}
               height={virtualHeight}
               fill="#ffffff"
-              listening={false}
+              listening={currentTool === "pan" || currentTool === "select"}
+              onMouseDown={(e) => {
+                if (currentTool === "select") {
+                  const stage = stageRef.current;
+                  if (!stage) return;
+
+                  const pointer = stage.getPointerPosition();
+                  if (!pointer) return;
+
+                  const virtualPoint = {
+                    x: pointer.x / viewport.scale + viewport.x,
+                    y: pointer.y / viewport.scale + viewport.y,
+                  };
+
+                  setIsSelecting(true);
+                  selectionStartRef.current = virtualPoint;
+                  setSelectionRect({
+                    x: virtualPoint.x,
+                    y: virtualPoint.y,
+                    width: 0,
+                    height: 0,
+                  });
+                  e.cancelBubble = true;
+                }
+              }}
+              onMouseMove={(e) => {
+                if (
+                  currentTool === "select" &&
+                  isSelecting &&
+                  selectionStartRef.current
+                ) {
+                  const stage = stageRef.current;
+                  if (!stage) return;
+
+                  const pointer = stage.getPointerPosition();
+                  if (!pointer) return;
+
+                  const virtualPoint = {
+                    x: pointer.x / viewport.scale + viewport.x,
+                    y: pointer.y / viewport.scale + viewport.y,
+                  };
+
+                  const start = selectionStartRef.current;
+                  const x = Math.min(start.x, virtualPoint.x);
+                  const y = Math.min(start.y, virtualPoint.y);
+                  const width = Math.abs(virtualPoint.x - start.x);
+                  const height = Math.abs(virtualPoint.y - start.y);
+
+                  setSelectionRect({ x, y, width, height });
+                }
+              }}
+              onMouseUp={(e) => {
+                if (currentTool === "select" && isSelecting && selectionRect) {
+                  if (selectionRect.width > 5 && selectionRect.height > 5) {
+                    const selectedIds = shapes
+                      .filter((shape) =>
+                        doesShapeIntersectRect(shape, selectionRect, shapes)
+                      )
+                      .map((shape) => shape.id);
+
+                    setSelectedShapeIds(selectedIds);
+                    presence.updateSelection(selectedIds);
+
+                    justFinishedSelectingRef.current = true;
+                    setTimeout(() => {
+                      justFinishedSelectingRef.current = false;
+                    }, 50);
+                  }
+
+                  setIsSelecting(false);
+                  setSelectionRect(null);
+                  selectionStartRef.current = null;
+                }
+              }}
+              onClick={() => {
+                if (
+                  currentTool === "select" &&
+                  !justFinishedSelectingRef.current
+                ) {
+                  setSelectedShapeIds([]);
+                }
+              }}
             />
 
             {/* Grid */}
@@ -1848,6 +2376,23 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                   )}
               </>
             )}
+
+            {/* Selection Rectangle */}
+            {selectionRect &&
+              selectionRect.width > 0 &&
+              selectionRect.height > 0 && (
+                <Rect
+                  x={selectionRect.x}
+                  y={selectionRect.y}
+                  width={selectionRect.width}
+                  height={selectionRect.height}
+                  fill="rgba(59, 130, 246, 0.1)"
+                  stroke="#3b82f6"
+                  strokeWidth={2 / viewport.scale}
+                  dash={[8 / viewport.scale, 4 / viewport.scale]}
+                  listening={false}
+                />
+              )}
 
             {/* Shapes - Use hierarchical rendering if nodes have parent relationships */}
             {useHierarchicalRendering ? (

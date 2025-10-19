@@ -24,8 +24,8 @@ export function Viewport({
   const handleMouseDown = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       // Only handle panning when in pan mode
+      // In other modes, let the event bubble up to the Stage
       if (currentTool !== "pan") {
-        e.cancelBubble = true;
         return;
       }
 
@@ -55,7 +55,6 @@ export function Viewport({
   const handleMouseMove = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       if (!isDraggingRef.current || currentTool !== "pan") {
-        e.cancelBubble = true;
         return;
       }
 
@@ -84,7 +83,6 @@ export function Viewport({
   const handleMouseUp = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       if (!isDraggingRef.current || currentTool !== "pan") {
-        e.cancelBubble = true;
         return;
       }
 

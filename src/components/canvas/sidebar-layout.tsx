@@ -9,8 +9,38 @@ import { PageDoc, NodeDoc } from "@/types/page";
 import { PageContextMenu } from "./page-context-menu";
 import { useNodeTree } from "@/hooks/useNodeTree";
 import { LayerTree } from "./layer-tree";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+} from "@/components/ui/accordion";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { ChevronDownIcon } from "lucide-react";
 
 import type { DropPosition } from "@/hooks/useLayerDragDrop";
+
+// Custom AccordionTrigger with chevron on the left
+function CustomAccordionTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+  return (
+    <AccordionPrimitive.Header className="flex">
+      <AccordionPrimitive.Trigger
+        data-slot="accordion-trigger"
+        className={cn(
+          "focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-center gap-2 rounded-md py-2 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180",
+          className
+        )}
+        {...props}
+      >
+        <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200" />
+        {children}
+      </AccordionPrimitive.Trigger>
+    </AccordionPrimitive.Header>
+  );
+}
 
 interface SidebarLayoutProps {
   // Pages section
@@ -113,77 +143,90 @@ export function SidebarLayout({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Pages Section */}
-      <div className="border-b border-gray-200">
-        <div className="flex items-center justify-between px-3 py-2">
-          <h3 className="text-sm font-medium text-gray-700">Pages</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCreatePage}
-            className="h-6 w-6 p-0 hover:bg-gray-100"
-          >
-            <Plus className="w-3 h-3" />
-          </Button>
-        </div>
-        <div className="px-3 pb-2">
-          {pages.map((page) => (
-            <div
-              key={page.id}
-              className={cn(
-                "px-2 py-1 text-sm rounded hover:bg-blue-200",
-                currentPageId === page.id && "bg-blue-100"
-              )}
-              onContextMenu={(e) => handleContextMenu(e, page.id)}
+      <Accordion
+        type="multiple"
+        defaultValue={["pages", "layers"]}
+        className="flex-1 flex flex-col"
+      >
+        {/* Pages Section */}
+        <AccordionItem value="pages" className="border-b border-gray-200">
+          <div className="flex items-center justify-between px-3 py-2">
+            <CustomAccordionTrigger className="hover:no-underline flex-1">
+              <h3 className="text-sm font-medium text-gray-700">Pages</h3>
+            </CustomAccordionTrigger>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCreatePage}
+              className="h-6 w-6 p-0 hover:bg-gray-100 ml-2"
             >
-              {editingPageId === page.id ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleRenamePage(page.id);
-                      } else if (e.key === "Escape") {
-                        handleCancelEdit();
-                      }
-                    }}
-                    onBlur={() => handleRenamePage(page.id)}
-                    className="h-6 text-xs px-1 py-0"
-                    autoFocus
-                  />
-                </div>
-              ) : (
+              <Plus className="w-3 h-3" />
+            </Button>
+          </div>
+          <AccordionContent className="px-0 pb-0">
+            <div className="max-h-48 overflow-y-auto px-3 pb-2">
+              {pages.map((page) => (
                 <div
-                  className="cursor-pointer"
-                  onClick={() => onPageSelect(page.id)}
-                  onDoubleClick={() => handleStartEdit(page.id, page.name)}
+                  key={page.id}
+                  className={cn(
+                    "px-2 py-1 text-sm rounded hover:bg-blue-200",
+                    currentPageId === page.id && "bg-blue-100"
+                  )}
+                  onContextMenu={(e) => handleContextMenu(e, page.id)}
                 >
-                  {page.name}
+                  {editingPageId === page.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleRenamePage(page.id);
+                          } else if (e.key === "Escape") {
+                            handleCancelEdit();
+                          }
+                        }}
+                        onBlur={() => handleRenamePage(page.id)}
+                        className="h-6 text-xs px-1 py-0"
+                        autoFocus
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => onPageSelect(page.id)}
+                      onDoubleClick={() => handleStartEdit(page.id, page.name)}
+                    >
+                      {page.name}
+                    </div>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      {/* Layers Section */}
-      <div className="flex-1 overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-          <h3 className="text-sm font-medium text-gray-700">Layers</h3>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <LayerTree
-            nodes={nodeTree}
-            selectedShapeIds={selectedShapeIds}
-            onShapeSelect={onShapeSelect}
-            onShapeVisibilityToggle={onShapeVisibilityToggle}
-            onRenameNode={onRenameNode}
-            onNodeDrop={onNodeReorder}
-          />
-        </div>
-      </div>
+        {/* Layers Section */}
+        <AccordionItem value="layers" className="flex-1 flex flex-col">
+          <div className="px-3 py-2">
+            <CustomAccordionTrigger className="hover:no-underline">
+              <h3 className="text-sm font-medium text-gray-700">Layers</h3>
+            </CustomAccordionTrigger>
+          </div>
+          <AccordionContent className="flex-1 flex flex-col px-0 pb-0">
+            <div className="flex-1 overflow-y-auto px-3 pb-2">
+              <LayerTree
+                nodes={nodeTree}
+                selectedShapeIds={selectedShapeIds}
+                onShapeSelect={onShapeSelect}
+                onShapeVisibilityToggle={onShapeVisibilityToggle}
+                onRenameNode={onRenameNode}
+                onNodeDrop={onNodeReorder}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {/* Context Menu */}
       <PageContextMenu

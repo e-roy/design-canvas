@@ -20,6 +20,7 @@ import {
   Frame,
   MessageSquare,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ToolbarProps {
   currentTool:
@@ -74,19 +75,24 @@ export const Toolbar = memo(function Toolbar({
 
   return (
     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-      <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-2">
-        <div className="flex items-center gap-2">
+      <div className="glass-3 rounded-xl shadow-xl p-3 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
           {/* Select/Pan Tool Group */}
           <div className="flex items-center">
             <Button
               variant={
                 currentTool === "select" || currentTool === "pan"
                   ? "default"
-                  : "outline"
+                  : "ghost"
               }
               size="sm"
               onClick={() => onToolChange("select")}
-              className="w-10 h-10 p-0 rounded-r-none"
+              className={cn(
+                "w-11 h-11 p-0 rounded-r-none transition-all duration-200",
+                currentTool === "select" || currentTool === "pan"
+                  ? "hover:bg-primary/80 hover:text-primary-foreground"
+                  : "hover:bg-accent/50"
+              )}
             >
               {getSelectPanIcon()}
             </Button>
@@ -96,10 +102,15 @@ export const Toolbar = memo(function Toolbar({
                   variant={
                     currentTool === "select" || currentTool === "pan"
                       ? "default"
-                      : "outline"
+                      : "ghost"
                   }
                   size="sm"
-                  className="w-6 h-10 p-0 rounded-l-none"
+                  className={cn(
+                    "w-7 h-11 p-0 rounded-l-none transition-all duration-200",
+                    currentTool === "select" || currentTool === "pan"
+                      ? "hover:bg-primary/80 hover:text-primary-foreground"
+                      : "hover:bg-accent/50"
+                  )}
                 >
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -112,23 +123,28 @@ export const Toolbar = memo(function Toolbar({
                   <MousePointer className="w-4 h-4 mr-2" />
                   Select
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem
+                <DropdownMenuItem
                   onClick={() => onToolChange("pan")}
                   className={currentTool === "pan" ? "bg-accent" : ""}
                 >
                   <Hand className="w-4 h-4 mr-2" />
                   Pan
-                </DropdownMenuItem> */}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
           {/* Frame Tool */}
           <Button
-            variant={currentTool === "frame" ? "default" : "outline"}
+            variant={currentTool === "frame" ? "default" : "ghost"}
             size="sm"
             onClick={() => onToolChange("frame")}
-            className="w-10 h-10 p-0"
+            className={cn(
+              "w-11 h-11 p-0 transition-all duration-200",
+              currentTool === "frame"
+                ? "hover:bg-primary/80 hover:text-primary-foreground"
+                : "hover:bg-accent/50"
+            )}
           >
             <Frame className="w-4 h-4" />
           </Button>
@@ -142,11 +158,19 @@ export const Toolbar = memo(function Toolbar({
                 currentTool === "triangle" ||
                 currentTool === "line"
                   ? "default"
-                  : "outline"
+                  : "ghost"
               }
               size="sm"
               onClick={() => onToolChange("rectangle")}
-              className="w-10 h-10 p-0 rounded-r-none"
+              className={cn(
+                "w-11 h-11 p-0 rounded-r-none transition-all duration-200",
+                currentTool === "rectangle" ||
+                  currentTool === "circle" ||
+                  currentTool === "triangle" ||
+                  currentTool === "line"
+                  ? "hover:bg-primary/80 hover:text-primary-foreground"
+                  : "hover:bg-accent/50"
+              )}
             >
               {getShapeIcon()}
             </Button>
@@ -159,10 +183,18 @@ export const Toolbar = memo(function Toolbar({
                     currentTool === "triangle" ||
                     currentTool === "line"
                       ? "default"
-                      : "outline"
+                      : "ghost"
                   }
                   size="sm"
-                  className="w-6 h-10 p-0 rounded-l-none"
+                  className={cn(
+                    "w-7 h-11 p-0 rounded-l-none transition-all duration-200",
+                    currentTool === "rectangle" ||
+                      currentTool === "circle" ||
+                      currentTool === "triangle" ||
+                      currentTool === "line"
+                      ? "hover:bg-primary/80 hover:text-primary-foreground"
+                      : "hover:bg-accent/50"
+                  )}
                 >
                   <ChevronDown className="w-3 h-3" />
                 </Button>
@@ -202,20 +234,30 @@ export const Toolbar = memo(function Toolbar({
 
           {/* Text Tool */}
           <Button
-            variant={currentTool === "text" ? "default" : "outline"}
+            variant={currentTool === "text" ? "default" : "ghost"}
             size="sm"
             onClick={() => onToolChange("text")}
-            className="w-10 h-10 p-0"
+            className={cn(
+              "w-11 h-11 p-0 transition-all duration-200",
+              currentTool === "text"
+                ? "hover:bg-primary/80 hover:text-primary-foreground"
+                : "hover:bg-accent/50"
+            )}
           >
             <Type className="w-4 h-4" />
           </Button>
 
           {/* AI Chat Tool */}
           <Button
-            variant={currentTool === "ai-chat" ? "default" : "outline"}
+            variant={currentTool === "ai-chat" ? "default" : "ghost"}
             size="sm"
             onClick={() => onToolChange("ai-chat")}
-            className="w-10 h-10 p-0"
+            className={cn(
+              "w-11 h-11 p-0 transition-all duration-200",
+              currentTool === "ai-chat"
+                ? "hover:bg-primary/80 hover:text-primary-foreground"
+                : "hover:bg-accent/50"
+            )}
           >
             <MessageSquare className="w-4 h-4" />
           </Button>
