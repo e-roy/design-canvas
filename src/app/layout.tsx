@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://collabcanvas.com"),
+  metadataBase: new URL("https://design-canvas-ruddy.vercel.app"),
   alternates: {
     canonical: "/",
   },
@@ -41,16 +41,8 @@ export const metadata: Metadata = {
     title: "CollabCanvas — Design Together, Smarter",
     description:
       "CollabCanvas lets teams co-create beautiful designs in real time — with AI that helps you ideate, refine, and ship faster.",
-    url: "https://collabcanvas.com",
+    url: "https://design-canvas-ruddy.vercel.app",
     siteName: "CollabCanvas",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "CollabCanvas interface with multiple cursors collaborating on a canvas",
-      },
-    ],
     locale: "en_US",
     type: "website",
   },
@@ -59,7 +51,6 @@ export const metadata: Metadata = {
     title: "CollabCanvas — Design Together, Smarter",
     description:
       "CollabCanvas lets teams co-create beautiful designs in real time — with AI that helps you ideate, refine, and ship faster.",
-    images: ["/og-image.png"],
   },
   robots: {
     index: true,
