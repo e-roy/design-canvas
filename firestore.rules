@@ -29,5 +29,10 @@ service cloud.firestore {
     match /canvas_shapes/{shapeId} {
       allow read, write: if isAuthenticated();
     }
+    
+    // AI Chat messages - users can only access their own chat history
+    match /canvasChats/{userId}/messages/{messageId} {
+      allow read, write: if isAuthenticated() && getUserId() == userId;
+    }
   }
 }

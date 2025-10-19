@@ -177,7 +177,8 @@ export interface CanvasState {
     | "text"
     | "line"
     | "triangle"
-    | "frame";
+    | "frame"
+    | "ai-chat";
 }
 
 export interface CanvasProps {
@@ -204,6 +205,7 @@ export interface CanvasProps {
       | "line"
       | "triangle"
       | "frame"
+      | "ai-chat"
   ) => void;
   onMouseMove?: (
     position: import("@/types").CursorPosition,
@@ -236,7 +238,8 @@ export interface ViewportProps {
     | "text"
     | "line"
     | "triangle"
-    | "frame";
+    | "frame"
+    | "ai-chat";
 }
 
 export interface GridProps {

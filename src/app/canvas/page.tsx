@@ -41,6 +41,7 @@ import {
   CanvasRef,
   PropertiesPanel,
   Toolbar,
+  AiChatPanel,
 } from "@/components/canvas";
 import { SidebarLayout } from "@/components/canvas/sidebar-layout";
 import { ConnectionStatus } from "@/components/connection-status";
@@ -49,6 +50,7 @@ import { NodeDoc } from "@/types/page";
 import { cursorManager } from "@/lib/cursor-manager";
 import { reorderSiblingTx, reparentTx } from "@/services/nodes";
 import type { DropPosition } from "@/hooks/useLayerDragDrop";
+import type { CommandExecutorContext } from "@/lib/ai-command-executor";
 
 // Use a fixed document ID for the main collaborative canvas
 const MAIN_CANVAS_ID = "main-collaborative-canvas";
@@ -74,6 +76,7 @@ export default function CanvasPage() {
   const pages = useCanvasPages();
   const currentPageId = useCanvasCurrentPageId();
   const documentId = useCanvasStore((state) => state.documentId);
+  const viewport = useCanvasStore((state) => state.viewport);
 
   // Check if the current page actually exists
   const currentPageExists =
@@ -149,7 +152,7 @@ export default function CanvasPage() {
   // Update cursor manager with viewport changes
   // Note: Viewport is now included with each cursor position update for synchronization
   const handleViewportChange = useCallback(
-    (viewport: { x: number; y: number; scale: number }) => {
+    (_viewport: { x: number; y: number; scale: number }) => {
       // Viewport changes are automatically sent with cursor updates
       // No separate update needed for cursor manager
     },
@@ -312,9 +315,13 @@ export default function CanvasPage() {
         | "line"
         | "triangle"
         | "frame"
+        | "ai-chat"
     ) => {
       setCurrentTool(tool);
-      canvasRef.current?.setTool(tool);
+      // Don't set tool on canvas for ai-chat since it's not a drawing tool
+      if (tool !== "ai-chat") {
+        canvasRef.current?.setTool(tool);
+      }
     },
     [setCurrentTool]
   );
@@ -688,6 +695,47 @@ export default function CanvasPage() {
     [selectedShapeIds, nodes]
   );
 
+  // Create command executor context for AI chat
+  const commandContext: CommandExecutorContext | undefined = useMemo(() => {
+    // Ensure documentId is valid (not empty string or null)
+    if (!user || !documentId || documentId.trim() === "") return undefined;
+
+    return {
+      canvasId: documentId,
+      currentPageId,
+      userId: user.uid,
+      viewport,
+      nodes, // Include current nodes for manipulation commands
+      createNode: async (
+        pageId: string,
+        nodeData: Omit<
+          NodeDoc,
+          | "id"
+          | "pageId"
+          | "orderKey"
+          | "createdAt"
+          | "updatedAt"
+          | "createdBy"
+          | "updatedBy"
+          | "version"
+        >,
+        userId: string
+      ) => {
+        return await nodesActions.createNode(pageId, nodeData, userId);
+      },
+      updateNode: async (
+        nodeId: string,
+        updates: Partial<NodeDoc>,
+        userId: string
+      ) => {
+        return await nodesActions.updateNode(nodeId, updates, userId);
+      },
+      deleteNode: async (nodeId: string) => {
+        return await nodesActions.deleteNode(nodeId);
+      },
+    };
+  }, [user, documentId, currentPageId, viewport, nodes, nodesActions]);
+
   // Show loading state while initializing
   if (isLoading) {
     return (
@@ -803,11 +851,18 @@ export default function CanvasPage() {
                   </SidebarHeader>
 
                   <SidebarContent>
-                    <PropertiesPanel
-                      selectedShape={selectedShape}
-                      onShapeUpdate={handleShapeUpdate}
-                      onShapeDelete={handleShapeDelete}
-                    />
+                    {currentTool === "ai-chat" ? (
+                      <AiChatPanel
+                        commandContext={commandContext}
+                        nodes={nodes}
+                      />
+                    ) : (
+                      <PropertiesPanel
+                        selectedShape={selectedShape}
+                        onShapeUpdate={handleShapeUpdate}
+                        onShapeDelete={handleShapeDelete}
+                      />
+                    )}
                   </SidebarContent>
                 </Sidebar>
               </SidebarProvider>

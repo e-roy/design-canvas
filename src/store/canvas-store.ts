@@ -38,7 +38,8 @@ interface CanvasState {
     | "text"
     | "line"
     | "triangle"
-    | "frame";
+    | "frame"
+    | "ai-chat";
   canvasDimensions: {
     width: number;
     height: number;
@@ -91,6 +92,7 @@ interface CanvasActions {
       | "line"
       | "triangle"
       | "frame"
+      | "ai-chat"
   ) => void;
   setCanvasDimensions: (dimensions: { width: number; height: number }) => void;
   setSelectedShapeIds: (ids: string[]) => void;

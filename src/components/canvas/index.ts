@@ -5,6 +5,7 @@ export { CanvasGrid } from "./grid";
 export * from "./shapes";
 export { Cursor, CursorsOverlay } from "./cursor";
 export { PropertiesPanel } from "./properties-panel";
+export { AiChatPanel } from "./ai-chat-panel";
 export { CustomSidebarTrigger } from "./sidebar-triggers";
 export { Toolbar } from "./toolbar";
 export { LayerTree } from "./layer-tree";

@@ -1194,7 +1194,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       !isCreatingShape ||
       currentTool === "select" ||
       currentTool === "pan" ||
-      currentTool === "text"
+      currentTool === "text" ||
+      currentTool === "ai-chat"
     )
       return;
 

@@ -18,6 +18,7 @@ import {
   Minus,
   Triangle,
   Frame,
+  MessageSquare,
 } from "lucide-react";
 
 interface ToolbarProps {
@@ -29,7 +30,8 @@ interface ToolbarProps {
     | "text"
     | "line"
     | "triangle"
-    | "frame";
+    | "frame"
+    | "ai-chat";
   onToolChange: (
     tool:
       | "select"
@@ -40,6 +42,7 @@ interface ToolbarProps {
       | "line"
       | "triangle"
       | "frame"
+      | "ai-chat"
   ) => void;
 }
 
@@ -205,6 +208,16 @@ export const Toolbar = memo(function Toolbar({
             className="w-10 h-10 p-0"
           >
             <Type className="w-4 h-4" />
+          </Button>
+
+          {/* AI Chat Tool */}
+          <Button
+            variant={currentTool === "ai-chat" ? "default" : "outline"}
+            size="sm"
+            onClick={() => onToolChange("ai-chat")}
+            className="w-10 h-10 p-0"
+          >
+            <MessageSquare className="w-4 h-4" />
           </Button>
         </div>
       </div>
