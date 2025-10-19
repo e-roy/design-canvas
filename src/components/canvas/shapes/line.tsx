@@ -17,6 +17,7 @@ interface LineProps {
   onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
+  scale: number;
 }
 
 export const LineShape = memo(function LineShape({
@@ -29,6 +30,7 @@ export const LineShape = memo(function LineShape({
   onShapeChange,
   virtualWidth,
   virtualHeight,
+  scale,
 }: LineProps) {
   const lineRef = useRef<KonvaLine>(null);
   const startHandleRef = useRef<KonvaCircle>(null);

@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Minus,
   Triangle,
+  Frame,
 } from "lucide-react";
 
 interface ToolbarProps {
@@ -27,7 +28,8 @@ interface ToolbarProps {
     | "circle"
     | "text"
     | "line"
-    | "triangle";
+    | "triangle"
+    | "frame";
   onToolChange: (
     tool:
       | "select"
@@ -37,6 +39,7 @@ interface ToolbarProps {
       | "text"
       | "line"
       | "triangle"
+      | "frame"
   ) => void;
 }
 
@@ -116,6 +119,16 @@ export const Toolbar = memo(function Toolbar({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* Frame Tool */}
+          <Button
+            variant={currentTool === "frame" ? "default" : "outline"}
+            size="sm"
+            onClick={() => onToolChange("frame")}
+            className="w-10 h-10 p-0"
+          >
+            <Frame className="w-4 h-4" />
+          </Button>
 
           {/* Rectangle/Circle Tool Group */}
           <div className="flex items-center">

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, memo, useEffect } from "react";
-import { Line, Transformer } from "react-konva";
+import { Line, Transformer, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Line as KonvaLine } from "konva/lib/shapes/Line";
 import { Shape } from "@/types";
@@ -17,6 +17,7 @@ interface TriangleProps {
   onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
+  scale: number;
 }
 
 export const TriangleShape = memo(function TriangleShape({
@@ -29,6 +30,7 @@ export const TriangleShape = memo(function TriangleShape({
   onShapeChange,
   virtualWidth,
   virtualHeight,
+  scale,
 }: TriangleProps) {
   const triangleRef = useRef<KonvaLine>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -124,6 +126,10 @@ export const TriangleShape = memo(function TriangleShape({
   const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
 
+  // Calculate font size that scales inversely with zoom to maintain readability
+  const labelFontSize = 12 / scale;
+  const labelOffset = 4 / scale; // Small offset above the triangle
+
   // Calculate triangle points (relative to shape position)
   const width = shape.width || 100;
   const height = shape.height || 100;
@@ -160,6 +166,15 @@ export const TriangleShape = memo(function TriangleShape({
         onTransform={handleTransform}
         onTransformEnd={handleTransform}
         closed={true}
+      />
+      {/* Shape name label outside above the triangle */}
+      <Text
+        x={shape.x}
+        y={shape.y - labelOffset - labelFontSize}
+        text={shape.name || "Triangle"}
+        fontSize={labelFontSize}
+        fill="#999999"
+        listening={false}
       />
       {isSelected && (
         <Transformer

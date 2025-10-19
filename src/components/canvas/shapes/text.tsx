@@ -16,6 +16,7 @@ interface TextProps {
   onShapeChange?: (id: string, updates: Partial<Shape>) => void;
   virtualWidth: number;
   virtualHeight: number;
+  scale: number;
 }
 
 export const TextShape = memo(function TextShape({
@@ -28,6 +29,7 @@ export const TextShape = memo(function TextShape({
   onShapeChange,
   virtualWidth,
   virtualHeight,
+  scale,
 }: TextProps) {
   const textRef = useRef<KonvaText>(null);
   const [, _setIsDragging] = useState(false);

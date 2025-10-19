@@ -309,6 +309,7 @@ export default function CanvasPage() {
         | "text"
         | "line"
         | "triangle"
+        | "frame"
     ) => {
       setCurrentTool(tool);
       canvasRef.current?.setTool(tool);
@@ -510,6 +511,7 @@ export default function CanvasPage() {
         id: node.id,
         canvasId: "default", // Use default for now
         type: node.type,
+        name: node.name, // Include custom name from database
         x: node.x || 0,
         y: node.y || 0,
         width: node.width || 0,

@@ -12,6 +12,7 @@ import {
   Type,
   Minus,
   Triangle,
+  Frame,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageDoc } from "@/types/page";
@@ -144,7 +145,7 @@ export function SidebarLayout({
       case "triangle":
         return <Triangle className="w-3 h-3" />;
       case "frame":
-        return <Square className="w-3 h-3" />;
+        return <Frame className="w-3 h-3" />;
       case "group":
         return <Square className="w-3 h-3" />;
       default:
@@ -210,8 +211,8 @@ export function SidebarLayout({
             <div
               key={page.id}
               className={cn(
-                "px-2 py-1 text-sm rounded hover:bg-gray-50",
-                currentPageId === page.id && "bg-gray-100"
+                "px-2 py-1 text-sm rounded hover:bg-blue-200",
+                currentPageId === page.id && "bg-blue-100"
               )}
               onContextMenu={(e) => handleContextMenu(e, page.id)}
             >

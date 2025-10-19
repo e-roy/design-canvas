@@ -127,6 +127,7 @@ export interface Shape {
     | "triangle"
     | "frame"
     | "group";
+  name?: string;
   x: number;
   y: number;
   width?: number;
@@ -172,7 +173,8 @@ export interface CanvasState {
     | "circle"
     | "text"
     | "line"
-    | "triangle";
+    | "triangle"
+    | "frame";
 }
 
 export interface CanvasProps {
@@ -198,6 +200,7 @@ export interface CanvasProps {
       | "text"
       | "line"
       | "triangle"
+      | "frame"
   ) => void;
   onMouseMove?: (
     position: import("@/types").CursorPosition,
@@ -229,7 +232,8 @@ export interface ViewportProps {
     | "circle"
     | "text"
     | "line"
-    | "triangle";
+    | "triangle"
+    | "frame";
 }
 
 export interface GridProps {

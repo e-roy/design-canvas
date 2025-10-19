@@ -21,6 +21,7 @@ import {
   TextShape,
   LineShape,
   TriangleShape,
+  FrameShape,
 } from "./shapes";
 import { CursorsOverlay } from "./cursor";
 import { CursorPosition } from "@/types";
@@ -52,6 +53,7 @@ export interface CanvasRef {
       | "text"
       | "line"
       | "triangle"
+      | "frame"
   ) => void;
   getViewport: () => CanvasViewport;
   getShapes: () => Shape[];
@@ -518,9 +520,40 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     [onShapeUpdate]
   );
 
+  // Helper function to generate display name for shapes
+  const getShapeDisplayName = useCallback(
+    (shape: Shape, index: number): string => {
+      // If the shape has a custom name, use it
+      if (shape.name) {
+        return shape.name;
+      }
+
+      // Otherwise, generate default names based on type
+      switch (shape.type) {
+        case "text":
+          return shape.text || `Text ${index + 1}`;
+        case "rectangle":
+          return `Rectangle ${index + 1}`;
+        case "circle":
+          return `Circle ${index + 1}`;
+        case "line":
+          return `Line ${index + 1}`;
+        case "triangle":
+          return `Triangle ${index + 1}`;
+        case "frame":
+          return `Frame ${index + 1}`;
+        case "group":
+          return `Group ${index + 1}`;
+        default:
+          return `Shape ${index + 1}`;
+      }
+    },
+    []
+  );
+
   // Memoized shape renderer to prevent unnecessary re-renders
   const renderShape = useCallback(
-    (shape: Shape) => {
+    (shape: Shape, index: number) => {
       // Don't render if shape is hidden
       if (shape.visible === false) {
         return null;
@@ -528,6 +561,12 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       const isSelected = selectedShapeIds.includes(shape.id);
       const isGhost = shape.id.startsWith("ghost-");
+
+      // Generate display name for the shape
+      const displayName = getShapeDisplayName(shape, index);
+
+      // Create a shape with the display name
+      const shapeWithName = { ...shape, name: displayName };
 
       // For ghost shapes, render without interaction handlers
       const interactionProps = isGhost
@@ -551,55 +590,72 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           return (
             <RectangleShape
               key={shape.id}
-              shape={shape}
+              shape={shapeWithName}
               isSelected={isSelected}
               {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
+              scale={viewport.scale}
             />
           );
         case "circle":
           return (
             <CircleShape
               key={shape.id}
-              shape={shape}
+              shape={shapeWithName}
               isSelected={isSelected}
               {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
+              scale={viewport.scale}
             />
           );
         case "text":
           return (
             <TextShape
               key={shape.id}
-              shape={shape}
+              shape={shapeWithName}
               isSelected={isSelected}
               {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
+              scale={viewport.scale}
             />
           );
         case "line":
           return (
             <LineShape
               key={shape.id}
-              shape={shape}
+              shape={shapeWithName}
               isSelected={isSelected}
               {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
+              scale={viewport.scale}
             />
           );
         case "triangle":
           return (
             <TriangleShape
               key={shape.id}
-              shape={shape}
+              shape={shapeWithName}
               isSelected={isSelected}
               {...interactionProps}
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
+              scale={viewport.scale}
+            />
+          );
+        case "frame":
+          return (
+            <FrameShape
+              key={shape.id}
+              shape={shapeWithName}
+              isSelected={isSelected}
+              {...interactionProps}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+              scale={viewport.scale}
             />
           );
         default:
@@ -615,12 +671,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       handleShapeChange,
       virtualWidth,
       virtualHeight,
+      viewport.scale,
+      getShapeDisplayName,
     ]
   );
 
   const handleCreateShape = useCallback(
     (
-      type: "rectangle" | "circle" | "text" | "line" | "triangle",
+      type: "rectangle" | "circle" | "text" | "line" | "triangle" | "frame",
       x: number,
       y: number
     ) => {
@@ -636,7 +694,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       let endY = y;
 
       if (previewShape) {
-        if (type === "rectangle" && previewShape.width && previewShape.height) {
+        if (
+          (type === "rectangle" || type === "frame") &&
+          previewShape.width &&
+          previewShape.height
+        ) {
           width = previewShape.width;
           height = previewShape.height;
         } else if (type === "circle" && previewShape.radius) {
@@ -744,6 +806,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         x: constrainedX,
         y: constrainedY,
         ...(type === "rectangle" && { width, height }),
+        ...(type === "frame" && { width: width || 300, height: height || 200 }),
         ...(type === "circle" && { radius }),
         ...(type === "text" && {
           text: "Click to edit",
@@ -757,8 +820,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           endY: adjustedEndY,
         }),
         ...(type === "triangle" && { width, height }),
-        // Default fill for non-text shapes
-        ...(type !== "text" && { fill: "#ffffff" }),
+        // Default fill colors: white for frames, #D9D9D9 for shapes
+        ...(type === "frame" && { fill: "#ffffff" }),
+        ...(type !== "text" && type !== "frame" && { fill: "#D9D9D9" }),
         stroke: "#000000",
         strokeWidth: 1,
         zIndex: Date.now(), // Add zIndex for proper stacking
@@ -822,7 +886,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
     setCreationStartPoint(constrainedPoint);
 
-    // Create preview shape (for rectangle, circle, line, and triangle)
+    // Create preview shape (for rectangle, circle, line, triangle, and frame)
     const preview: Shape = {
       id: "preview",
       canvasId: "default", // Add canvasId for forward compatibility
@@ -830,6 +894,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       x: constrainedPoint.x,
       y: constrainedPoint.y,
       ...(currentTool === "rectangle" && { width: 0, height: 0 }),
+      ...(currentTool === "frame" && { width: 0, height: 0 }),
       ...(currentTool === "circle" && { radius: 0 }),
       ...(currentTool === "line" && {
         startX: constrainedPoint.x,
@@ -838,7 +903,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         endY: constrainedPoint.y,
       }),
       ...(currentTool === "triangle" && { width: 0, height: 0 }),
-      fill: "#ffffff",
+      fill: currentTool === "frame" ? "#ffffff" : "#D9D9D9",
       stroke: "#3b82f6",
       strokeWidth: 2,
       zIndex: Date.now(), // Add zIndex for proper stacking
@@ -990,7 +1055,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     };
 
     // Update preview shape based on drag distance
-    if (currentTool === "rectangle") {
+    if (currentTool === "rectangle" || currentTool === "frame") {
       const width = Math.abs(virtualPoint.x - creationStartPoint.x);
       const height = Math.abs(virtualPoint.y - creationStartPoint.y);
       setPreviewShape((prev) =>
@@ -1075,13 +1140,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    // Create final shape (for rectangle, circle, line, triangle, text)
+    // Create final shape (for rectangle, circle, line, triangle, text, frame)
     if (
       currentTool === "rectangle" ||
       currentTool === "circle" ||
       currentTool === "line" ||
       currentTool === "triangle" ||
-      currentTool === "text"
+      currentTool === "text" ||
+      currentTool === "frame"
     ) {
       handleCreateShape(
         currentTool,
@@ -1165,6 +1231,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         | "text"
         | "line"
         | "triangle"
+        | "frame"
     ) => {
       setCurrentTool(tool);
       setIsCreatingShape(tool !== "select" && tool !== "pan");
@@ -1370,6 +1437,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                       onShapeChange={() => {}}
                       virtualWidth={virtualWidth}
                       virtualHeight={virtualHeight}
+                      scale={viewport.scale}
                     />
                   )}
                 {previewShape.type === "circle" &&
@@ -1385,6 +1453,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                       onShapeChange={() => {}}
                       virtualWidth={virtualWidth}
                       virtualHeight={virtualHeight}
+                      scale={viewport.scale}
                     />
                   )}
                 {previewShape.type === "line" &&
@@ -1402,6 +1471,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                       onShapeChange={() => {}}
                       virtualWidth={virtualWidth}
                       virtualHeight={virtualHeight}
+                      scale={viewport.scale}
                     />
                   )}
                 {previewShape.type === "triangle" &&
@@ -1419,13 +1489,34 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
                       onShapeChange={() => {}}
                       virtualWidth={virtualWidth}
                       virtualHeight={virtualHeight}
+                      scale={viewport.scale}
+                    />
+                  )}
+                {previewShape.type === "frame" &&
+                  previewShape.width !== undefined &&
+                  previewShape.height !== undefined &&
+                  previewShape.width > 0 &&
+                  previewShape.height > 0 && (
+                    <FrameShape
+                      shape={previewShape}
+                      isSelected={false}
+                      onSelect={() => {}}
+                      onDragStart={() => {}}
+                      onDragMove={() => {}}
+                      onDragEnd={() => {}}
+                      onShapeChange={() => {}}
+                      virtualWidth={virtualWidth}
+                      virtualHeight={virtualHeight}
+                      scale={viewport.scale}
                     />
                   )}
               </>
             )}
 
             {/* Shapes */}
-            {allShapesForRendering.map(renderShape)}
+            {allShapesForRendering.map((shape, index) =>
+              renderShape(shape, index)
+            )}
           </Viewport>
         </Layer>
       </Stage>

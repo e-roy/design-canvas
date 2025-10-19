@@ -37,7 +37,8 @@ interface CanvasState {
     | "circle"
     | "text"
     | "line"
-    | "triangle";
+    | "triangle"
+    | "frame";
   canvasDimensions: {
     width: number;
     height: number;
@@ -89,6 +90,7 @@ interface CanvasActions {
       | "text"
       | "line"
       | "triangle"
+      | "frame"
   ) => void;
   setCanvasDimensions: (dimensions: { width: number; height: number }) => void;
   setSelectedShapeIds: (ids: string[]) => void;

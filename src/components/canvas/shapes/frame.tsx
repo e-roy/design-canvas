@@ -7,7 +7,7 @@ import type { Rect as KonvaRect } from "konva/lib/shapes/Rect";
 import { Shape } from "@/types";
 import Konva from "konva";
 
-interface RectangleProps {
+interface FrameProps {
   shape: Shape;
   isSelected: boolean;
   onSelect?: (id: string) => void;
@@ -20,7 +20,7 @@ interface RectangleProps {
   scale: number;
 }
 
-export const RectangleShape = memo(function RectangleShape({
+export const FrameShape = memo(function FrameShape({
   shape,
   isSelected,
   onSelect,
@@ -31,7 +31,7 @@ export const RectangleShape = memo(function RectangleShape({
   virtualWidth,
   virtualHeight,
   scale,
-}: RectangleProps) {
+}: FrameProps) {
   const rectRef = useRef<KonvaRect>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const [, _setIsDragging] = useState(false);
@@ -123,12 +123,14 @@ export const RectangleShape = memo(function RectangleShape({
     });
   }, [shape.id, onShapeChange]);
 
-  const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
-  const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
+  // Frame-specific styling: distinct from regular rectangles
+  const strokeColor = isSelected ? "#8b5cf6" : "#6366f1"; // Purple color for frames
+  const strokeWidth = 2;
+  const dashEnabled = true; // Dashed border to distinguish from regular rectangles
 
   // Calculate font size that scales inversely with zoom to maintain readability
   const labelFontSize = 12 / scale;
-  const labelOffset = 4 / scale; // Small offset above the rectangle
+  const labelOffset = 4 / scale; // Small offset above the frame
 
   return (
     <>
@@ -136,11 +138,12 @@ export const RectangleShape = memo(function RectangleShape({
         ref={rectRef}
         x={shape.x}
         y={shape.y}
-        width={shape.width || 100}
-        height={shape.height || 100}
-        fill={shape.fill || "#ffffff"}
+        width={shape.width || 300}
+        height={shape.height || 200}
+        fill={shape.fill || "#ffffff"} // Use shape fill, default to white
         stroke={strokeColor}
         strokeWidth={strokeWidth}
+        dash={dashEnabled ? [10, 5] : undefined}
         rotation={shape.rotation || 0}
         draggable={true}
         transformsEnabled="all"
@@ -150,12 +153,13 @@ export const RectangleShape = memo(function RectangleShape({
         onClick={handleClick}
         onTransform={handleTransform}
         onTransformEnd={handleTransform}
+        opacity={shape.opacity ?? 1}
       />
-      {/* Shape name label outside above the rectangle */}
+      {/* Frame label outside above the frame */}
       <Text
         x={shape.x}
         y={shape.y - labelOffset - labelFontSize}
-        text={shape.name || "Rectangle"}
+        text={shape.name || "Frame"}
         fontSize={labelFontSize}
         fill="#999999"
         listening={false}
