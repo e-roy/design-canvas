@@ -5,15 +5,17 @@ export interface CursorPosition {
   timestamp: number;
 }
 
-// User cursor data with color and name
+// User cursor data
 export interface UserCursor {
   userId: string;
   displayName: string;
   color: string;
   photoURL: string | null;
   currentProject?: string | null;
+  currentPage?: string | null;
   x: number;
   y: number;
+  viewport?: { x: number; y: number; scale: number }; // User's viewport for accurate cursor positioning
   timestamp: number;
   isOnline: boolean;
 }
