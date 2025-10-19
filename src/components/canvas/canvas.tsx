@@ -12,6 +12,7 @@ import React, {
 import { Stage, Layer, Rect } from "react-konva";
 import Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
+import type { Timestamp } from "firebase/firestore";
 import { CanvasProps, CanvasViewport, Point, Shape } from "@/types";
 import { Viewport } from "./viewport";
 import { CanvasGrid } from "./grid";
@@ -22,8 +23,12 @@ import {
   LineShape,
   TriangleShape,
   FrameShape,
+  GroupShape,
 } from "./shapes";
 import { CursorsOverlay } from "./cursor";
+import { NodeDoc } from "@/types/page";
+import { useNodeTree } from "@/hooks/useNodeTree";
+import { NodeTreeListRenderer } from "./node-tree-renderer";
 import { CursorPosition } from "@/types";
 import { generateUserColor } from "@/utils/color";
 import {
@@ -36,6 +41,7 @@ import {
 } from "@/store/canvas-store";
 import { useUserStore } from "@/store/user-store";
 import { usePresence } from "@/hooks/usePresence";
+import { reparentTx } from "@/services/nodes";
 
 // Canvas constants
 const VIRTUAL_WIDTH = 5000;
@@ -133,6 +139,131 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   // Use ref to store presence object to prevent effect re-runs
   const presenceRef = useRef(presence);
   presenceRef.current = presence;
+
+  // Canvas drag-and-drop state for nesting shapes into frames
+  const [_draggedShapeId, setDraggedShapeId] = useState<string | null>(null);
+  const [hoveredFrameId, setHoveredFrameId] = useState<string | null>(null);
+
+  // Helper function to convert shape position to world coordinates
+  // Uses the shapes array which already has localDragState applied
+  const getShapeWorldPosition = useCallback(
+    (shape: Shape, allShapes: Shape[]): { x: number; y: number } => {
+      // If no parent, coordinates are already in world space
+      if (!shape.parentId) {
+        return { x: shape.x, y: shape.y };
+      }
+
+      // Find the parent frame/group
+      // Note: allShapes should already have localDragState applied, so parent.x/y reflects current position
+      const parent = allShapes.find((s) => s.id === shape.parentId);
+      if (!parent) {
+        // Parent not found, assume world coordinates
+        return { x: shape.x, y: shape.y };
+      }
+
+      // Recursively get parent's world position (in case of nested groups)
+      const parentWorld = getShapeWorldPosition(parent, allShapes);
+
+      // Transform local coordinates to world coordinates
+      // For now, we only handle translation (x, y) - rotation can be added later if needed
+      return {
+        x: parentWorld.x + shape.x,
+        y: parentWorld.y + shape.y,
+      };
+    },
+    []
+  );
+
+  // Helper function to convert world coordinates to local coordinates relative to a parent
+  // dragStateOverrides: optional map of shape IDs to their current drag positions (for accurate parent positioning during drag)
+  const worldToLocalPosition = useCallback(
+    (
+      worldX: number,
+      worldY: number,
+      parentId: string | null,
+      allShapes: Shape[],
+      dragStateOverrides?: Record<string, { x: number; y: number }>
+    ): { x: number; y: number } => {
+      // If no parent, world coordinates are the same as local coordinates
+      if (!parentId) {
+        return { x: worldX, y: worldY };
+      }
+
+      // Find the parent frame/group
+      const parent = allShapes.find((s) => s.id === parentId);
+      if (!parent) {
+        // Parent not found, return world coordinates as-is
+        return { x: worldX, y: worldY };
+      }
+
+      // Get parent's world position, using drag state if available
+      const parentWorld = dragStateOverrides?.[parentId]
+        ? dragStateOverrides[parentId]
+        : getShapeWorldPosition(parent, allShapes);
+
+      // Convert world coordinates to local coordinates relative to parent
+      return {
+        x: worldX - parentWorld.x,
+        y: worldY - parentWorld.y,
+      };
+    },
+    [getShapeWorldPosition]
+  );
+
+  // Helper function to check if a point is inside a frame's bounds
+  const isPointInFrame = useCallback(
+    (x: number, y: number, frame: Shape): boolean => {
+      const fx = frame.x;
+      const fy = frame.y;
+      const fw = frame.width || 300;
+      const fh = frame.height || 200;
+
+      return x >= fx && x <= fx + fw && y >= fy && y <= fy + fh;
+    },
+    []
+  );
+
+  // Helper function to check if a shape's center is inside a frame
+  const isShapeCenterInFrame = useCallback(
+    (shape: Shape, frame: Shape, allShapes: Shape[]): boolean => {
+      // Get shape's world position
+      const worldPos = getShapeWorldPosition(shape, allShapes);
+      const centerX = worldPos.x + (shape.width || 50) / 2;
+      const centerY = worldPos.y + (shape.height || 50) / 2;
+
+      return isPointInFrame(centerX, centerY, frame);
+    },
+    [isPointInFrame, getShapeWorldPosition]
+  );
+
+  // Find which frame (if any) contains a shape's center
+  const findContainingFrame = useCallback(
+    (shape: Shape, allShapes: Shape[]): Shape | null => {
+      // Get all frames except the shape itself and its current parent
+      const frames = allShapes.filter(
+        (s) =>
+          s.type === "frame" &&
+          s.id !== shape.id &&
+          s.id !== shape.parentId &&
+          s.visible !== false
+      );
+
+      // Find the topmost frame (highest z-index) that contains the shape's center
+      const containingFrames = frames.filter((frame) =>
+        isShapeCenterInFrame(shape, frame, allShapes)
+      );
+
+      if (containingFrames.length === 0) return null;
+
+      // Return the frame with highest zIndex (most recently created/moved)
+      return containingFrames.reduce((topmost, current) => {
+        const topmostZ = topmost.zIndex || 0;
+        const currentZ = current.zIndex || 0;
+        return currentZ > topmostZ ? current : topmost;
+      });
+    },
+    [isShapeCenterInFrame]
+  );
 
   // Save viewport to localStorage whenever it changes (throttled)
   useEffect(() => {
@@ -305,18 +436,74 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     const baseShapes = externalShapes.map((shape) => {
       const localDrag = localDragState[shape.id];
       if (localDrag) {
+        // localDrag stores world coordinates, but if shape has a parent,
+        // we need to convert to local coordinates for hierarchical rendering
+        if (shape.parentId) {
+          // Pass localDragState so parent's drag position is used if parent is being dragged
+          const localPos = worldToLocalPosition(
+            localDrag.x,
+            localDrag.y,
+            shape.parentId,
+            externalShapes,
+            localDragState
+          );
+          return { ...shape, x: localPos.x, y: localPos.y };
+        }
         return { ...shape, x: localDrag.x, y: localDrag.y };
       }
       return shape;
     });
 
     return baseShapes;
-  }, [externalShapes, localDragState]);
+  }, [externalShapes, localDragState, worldToLocalPosition]);
 
   // Separate ghost shapes for visual rendering only (not interactive)
   const allShapesForRendering = useMemo(() => {
     return [...shapes, ...ghostShapes];
   }, [shapes, ghostShapes]);
+
+  // Convert shapes to NodeDoc format for hierarchical rendering
+  const nodesForHierarchy: NodeDoc[] = useMemo(() => {
+    return shapes.map((shape) => ({
+      id: shape.id,
+      pageId: shape.pageId || currentPageId || "",
+      parentId: shape.parentId ?? null, // Use actual parentId from shape
+      type: shape.type,
+      name: shape.name,
+      orderKey: shape.orderKey ?? shape.zIndex ?? 0,
+      x: shape.x,
+      y: shape.y,
+      width: shape.width,
+      height: shape.height,
+      radius: shape.radius,
+      rotation: shape.rotation ?? 0,
+      opacity: shape.opacity ?? 1,
+      text: shape.text,
+      fontSize: shape.fontSize,
+      startX: shape.startX,
+      startY: shape.startY,
+      endX: shape.endX,
+      endY: shape.endY,
+      fill: shape.fill,
+      stroke: shape.stroke,
+      strokeWidth: shape.strokeWidth,
+      isVisible: shape.visible !== false,
+      isLocked: false,
+      createdBy: "",
+      createdAt: null as unknown as Timestamp,
+      updatedBy: "",
+      updatedAt: null as unknown as Timestamp,
+      version: 0,
+    }));
+  }, [shapes, currentPageId]);
+
+  // Build hierarchical tree for rendering (root nodes only for now)
+  const nodeTree = useNodeTree(nodesForHierarchy, null);
+
+  // Feature flag for hierarchical rendering (enable by checking if any node has a parent)
+  const useHierarchicalRendering = useMemo(() => {
+    return nodesForHierarchy.some((node) => node.parentId !== null);
+  }, [nodesForHierarchy]);
 
   // Monitor Firebase updates to clear local drag state when confirmed
   useEffect(() => {
@@ -328,10 +515,22 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       const localDrag = localDragState[shapeId];
 
       if (externalShape && localDrag) {
+        // Convert localDrag world coordinates to local coordinates for comparison
+        // (externalShape stores local coordinates if it has a parent)
+        const localDragLocal = externalShape.parentId
+          ? worldToLocalPosition(
+              localDrag.x,
+              localDrag.y,
+              externalShape.parentId,
+              externalShapes,
+              localDragState
+            )
+          : { x: localDrag.x, y: localDrag.y };
+
         // Check if Firebase position matches our local position (within tolerance)
         const tolerance = 1; // 1 pixel tolerance
-        const xMatch = Math.abs(externalShape.x - localDrag.x) < tolerance;
-        const yMatch = Math.abs(externalShape.y - localDrag.y) < tolerance;
+        const xMatch = Math.abs(externalShape.x - localDragLocal.x) < tolerance;
+        const yMatch = Math.abs(externalShape.y - localDragLocal.y) < tolerance;
 
         if (xMatch && yMatch) {
           // Firebase update confirmed, clear local state
@@ -344,7 +543,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         }
       }
     });
-  }, [externalShapes, localDragState]);
+  }, [externalShapes, localDragState, worldToLocalPosition]);
 
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -404,18 +603,31 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   // Track active dragging shapes for more frequent updates
   const activeDraggingShapes = useRef<Set<string>>(new Set());
 
+  // Track hierarchical containers being dragged (frames/groups with children)
+  const hierarchicalDraggingRef = useRef<Set<string>>(new Set());
+
   const handleShapeDragStart = useCallback(
     (id: string) => {
-      // Move shape to front when dragging starts
-      if (onShapeUpdate) {
-        onShapeUpdate(id, { zIndex: Date.now() });
+      // Check if this is a hierarchical container (frame/group with children in hierarchical mode)
+      const shape = shapes.find((s) => s.id === id);
+      const isHierarchicalContainer =
+        shape &&
+        (shape.type === "frame" || shape.type === "group") &&
+        useHierarchicalRendering;
+
+      if (isHierarchicalContainer) {
+        // For hierarchical containers, just track drag without updating React state
+        // This prevents React re-renders from fighting with Konva's drag
+        hierarchicalDraggingRef.current.add(id);
+        activeDraggingShapes.current.add(id);
+        return;
       }
 
-      // Mark as actively dragging for more frequent updates
+      // For regular shapes, use normal drag handling
+      setDraggedShapeId(id);
       activeDraggingShapes.current.add(id);
 
       // Update presence gesture
-      const shape = shapes.find((s) => s.id === id);
       if (shape) {
         presence.updateGesture({
           type: "move",
@@ -430,7 +642,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         });
       }
     },
-    [onShapeUpdate, shapes, presence]
+    [shapes, presence, useHierarchicalRendering]
   );
 
   // Throttle RTDB updates to 30 FPS for better performance
@@ -443,6 +655,17 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         ...prev,
         [id]: { x, y },
       }));
+
+      // Check if shape is over a frame for visual feedback
+      const draggedShape = shapes.find((s) => s.id === id);
+      if (draggedShape && draggedShape.type !== "frame") {
+        const shapeWithCurrentPos = { ...draggedShape, x, y };
+        const containingFrame = findContainingFrame(
+          shapeWithCurrentPos,
+          shapes
+        );
+        setHoveredFrameId(containingFrame?.id || null);
+      }
 
       // Throttle RTDB updates to 40 FPS (25ms intervals) for smooth real-time collaboration
       if (rtdbUpdateRef.current[id]) {
@@ -467,14 +690,37 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         delete rtdbUpdateRef.current[id];
       }, 25); // 40 FPS for smoother real-time updates
 
-      // Use throttled commit for Firestore updates
-      commitThrottled(id, { x, y });
+      // Convert world coordinates to local coordinates if shape has a parent
+      const shape = shapes.find((s) => s.id === id);
+      if (shape) {
+        // Only convert to local coordinates if shape has a parent
+        // Frames and root-level shapes use world coordinates directly
+        // Note: Don't pass localDragState here - we want to save relative to parent's database position
+        const localPos = shape.parentId
+          ? worldToLocalPosition(x, y, shape.parentId, externalShapes)
+          : { x, y };
+        // Use throttled commit for Firestore updates with local coordinates
+        commitThrottled(id, { x: localPos.x, y: localPos.y });
+      }
     },
-    [shapes, presence, commitThrottled]
+    [
+      shapes,
+      externalShapes,
+      presence,
+      commitThrottled,
+      findContainingFrame,
+      worldToLocalPosition,
+    ]
   );
 
   const handleShapeDragEnd = useCallback(
-    (id: string, finalX?: number, finalY?: number) => {
+    async (id: string, finalX?: number, finalY?: number) => {
+      // Check if this was a hierarchical container drag
+      const wasHierarchicalDrag = hierarchicalDraggingRef.current.has(id);
+      if (wasHierarchicalDrag) {
+        hierarchicalDraggingRef.current.delete(id);
+      }
+
       // Remove from active dragging set
       activeDraggingShapes.current.delete(id);
 
@@ -487,28 +733,103 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       // Clear presence gesture immediately to prevent ghost objects
       presence.updateGesture(null);
 
-      // Final Firebase update with actual position from Konva
-      if (finalX !== undefined && finalY !== undefined) {
-        // Add a small delay to ensure any pending throttled updates complete first
+      // For hierarchical containers, just commit final position without local drag state
+      if (wasHierarchicalDrag && finalX !== undefined && finalY !== undefined) {
         setTimeout(() => {
           if (user?.uid && onShapeUpdate) {
             onShapeUpdate(id, { x: finalX, y: finalY });
           }
-        }, 50); // Reduced delay for faster final positioning
+        }, 50);
+        return;
+      }
 
-        // Mark this shape as having a pending drag end
-        // Local state will be cleared when Firebase update is confirmed
-        pendingDragEnds.current.add(id);
+      // Determine if we need to nest/unnest based on final position
+      if (finalX !== undefined && finalY !== undefined) {
+        const draggedShape = shapes.find((s) => s.id === id);
+
+        if (draggedShape && draggedShape.type !== "frame") {
+          // Create shape with final position for bounds checking
+          const shapeWithFinalPos = { ...draggedShape, x: finalX, y: finalY };
+
+          // Find what frame this shape is now inside
+          const newContainingFrame = findContainingFrame(
+            shapeWithFinalPos,
+            shapes
+          );
+          const newParentId = newContainingFrame?.id || null;
+
+          // Get current parent from the shape's parentId property
+          const currentParentId = draggedShape.parentId || null;
+
+          // Check if parent changed
+          if (newParentId !== currentParentId) {
+            // Reparent the shape
+            try {
+              if (user?.uid && canvasId) {
+                await reparentTx(
+                  canvasId,
+                  id,
+                  newParentId,
+                  null, // insertBeforeId - will be first child
+                  null, // insertAfterId
+                  user.uid
+                );
+              }
+            } catch (error) {
+              console.error("Error reparenting shape:", error);
+            }
+          } else {
+            // Same parent, just update position
+            // Convert world coordinates to local coordinates
+            // Note: Use externalShapes (database positions) not shapes (with drag state)
+            const localPos = worldToLocalPosition(
+              finalX,
+              finalY,
+              draggedShape.parentId || null,
+              externalShapes
+            );
+            setTimeout(() => {
+              if (user?.uid && onShapeUpdate) {
+                onShapeUpdate(id, { x: localPos.x, y: localPos.y });
+              }
+            }, 50);
+
+            pendingDragEnds.current.add(id);
+          }
+        } else {
+          // Frame or other shape - just update position
+          // Frames are always at root level (no parent), so coordinates are world coordinates
+          setTimeout(() => {
+            if (user?.uid && onShapeUpdate) {
+              onShapeUpdate(id, { x: finalX, y: finalY });
+            }
+          }, 50);
+
+          pendingDragEnds.current.add(id);
+        }
       } else {
-        // If no final position, clear immediately
+        // No final position provided, clear local state
         setLocalDragState((prev) => {
           const newState = { ...prev };
           delete newState[id];
           return newState;
         });
       }
+
+      // Clear drag state
+      setDraggedShapeId(null);
+      setHoveredFrameId(null);
     },
-    [presence, user?.uid, onShapeUpdate]
+    [
+      presence,
+      user?.uid,
+      onShapeUpdate,
+      canvasId,
+      shapes,
+      externalShapes,
+      findContainingFrame,
+      worldToLocalPosition,
+    ]
   );
 
   const handleShapeChange = useCallback(
@@ -656,6 +977,19 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               virtualWidth={virtualWidth}
               virtualHeight={virtualHeight}
               scale={viewport.scale}
+              isDraggedOver={hoveredFrameId === shape.id}
+            />
+          );
+        case "group":
+          return (
+            <GroupShape
+              key={shape.id}
+              shape={shapeWithName}
+              isSelected={isSelected}
+              {...interactionProps}
+              virtualWidth={virtualWidth}
+              virtualHeight={virtualHeight}
+              scale={viewport.scale}
             />
           );
         default:
@@ -673,6 +1007,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       virtualHeight,
       viewport.scale,
       getShapeDisplayName,
+      hoveredFrameId,
     ]
   );
 
@@ -772,11 +1107,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         constrainedY = Math.min(startY, endY);
       } else {
         // For other shapes, use the original constraint logic
-        constrainedX = Math.max(0, Math.min(virtualWidth - (width || 100), x));
-        constrainedY = Math.max(
-          0,
-          Math.min(virtualHeight - (height || 100), y)
-        );
+        // Use correct dimensions: frames are 300x200, others are 100x100
+        const shapeWidth = type === "frame" ? 300 : width || 100;
+        const shapeHeight = type === "frame" ? 200 : height || 100;
+        constrainedX = Math.max(0, Math.min(virtualWidth - shapeWidth, x));
+        constrainedY = Math.max(0, Math.min(virtualHeight - shapeHeight, y));
       }
 
       // For lines, use absolute coordinates (no adjustment needed)
@@ -1513,9 +1848,25 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
               </>
             )}
 
-            {/* Shapes */}
-            {allShapesForRendering.map((shape, index) =>
-              renderShape(shape, index)
+            {/* Shapes - Use hierarchical rendering if nodes have parent relationships */}
+            {useHierarchicalRendering ? (
+              <NodeTreeListRenderer
+                nodes={nodeTree}
+                selectedShapeIds={selectedShapeIds}
+                onSelect={handleShapeSelect}
+                onDragStart={handleShapeDragStart}
+                onDragMove={handleShapeDragMove}
+                onDragEnd={handleShapeDragEnd}
+                onShapeChange={handleShapeChange}
+                virtualWidth={virtualWidth}
+                virtualHeight={virtualHeight}
+                scale={viewport.scale}
+                getShapeDisplayName={getShapeDisplayName}
+              />
+            ) : (
+              allShapesForRendering.map((shape, index) =>
+                renderShape(shape, index)
+              )
             )}
           </Viewport>
         </Layer>

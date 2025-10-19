@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, memo, useEffect } from "react";
-import { Circle, Transformer, Text } from "react-konva";
+import { Circle, Transformer } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Circle as KonvaCircle } from "konva/lib/shapes/Circle";
 import { Shape } from "@/types";
@@ -47,12 +47,6 @@ export const CircleShape = memo(function CircleShape({
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
     onDragStart?.(shape.id);
-
-    // Bring to front
-    const circle = circleRef.current;
-    if (circle) {
-      circle.moveToTop();
-    }
   }, [shape.id, onDragStart]);
 
   const handleDragMove = useCallback(() => {
@@ -118,10 +112,6 @@ export const CircleShape = memo(function CircleShape({
   const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
   const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
 
-  // Calculate font size that scales inversely with zoom to maintain readability
-  const labelFontSize = 12 / scale;
-  const labelOffset = 4 / scale; // Small offset above the circle
-
   return (
     <>
       <Circle
@@ -133,7 +123,7 @@ export const CircleShape = memo(function CircleShape({
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         rotation={shape.rotation || 0}
-        draggable={true}
+        draggable={!!onDragStart}
         transformsEnabled="all"
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
@@ -141,17 +131,6 @@ export const CircleShape = memo(function CircleShape({
         onClick={handleClick}
         onTransform={handleTransform}
         onTransformEnd={handleTransform}
-      />
-      {/* Shape name label outside above the circle */}
-      <Text
-        x={shape.x}
-        y={shape.y - (shape.radius || 50) - labelOffset - labelFontSize}
-        text={shape.name || "Circle"}
-        fontSize={labelFontSize}
-        fill="#999999"
-        listening={false}
-        align="center"
-        offsetX={0}
       />
       {isSelected && (
         <Transformer

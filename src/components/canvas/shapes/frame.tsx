@@ -18,6 +18,8 @@ interface FrameProps {
   virtualWidth: number;
   virtualHeight: number;
   scale: number;
+  // Drop target props
+  isDraggedOver?: boolean;
 }
 
 export const FrameShape = memo(function FrameShape({
@@ -31,6 +33,7 @@ export const FrameShape = memo(function FrameShape({
   virtualWidth,
   virtualHeight,
   scale,
+  isDraggedOver = false,
 }: FrameProps) {
   const rectRef = useRef<KonvaRect>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -44,41 +47,34 @@ export const FrameShape = memo(function FrameShape({
     }
   }, [isSelected]);
 
+  // Constrain frame to canvas boundaries during drag
+  const dragBoundFunc = useCallback(
+    (pos: { x: number; y: number }) => {
+      const frameWidth = shape.width || 300;
+      const frameHeight = shape.height || 200;
+      return {
+        x: Math.max(0, Math.min(virtualWidth - frameWidth, pos.x)),
+        y: Math.max(0, Math.min(virtualHeight - frameHeight, pos.y)),
+      };
+    },
+    [shape.width, shape.height, virtualWidth, virtualHeight]
+  );
+
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
     onDragStart?.(shape.id);
-
-    // Bring to front
-    const rect = rectRef.current;
-    if (rect) {
-      rect.moveToTop();
-    }
   }, [shape.id, onDragStart]);
 
   const handleDragMove = useCallback(() => {
     const rect = rectRef.current;
     if (!rect) return;
 
-    let newX = rect.x();
-    let newY = rect.y();
+    const newX = rect.x();
+    const newY = rect.y();
 
-    // Constrain to canvas boundaries
-    newX = Math.max(0, Math.min(virtualWidth - (shape.width || 100), newX));
-    newY = Math.max(0, Math.min(virtualHeight - (shape.height || 100), newY));
-
-    // Update position
-    rect.position({ x: newX, y: newY });
-
-    // Only call onDragMove for visual updates, not Firebase
+    // Call onDragMove for visual updates
     onDragMove?.(shape.id, newX, newY);
-  }, [
-    shape.id,
-    shape.width,
-    shape.height,
-    onDragMove,
-    virtualWidth,
-    virtualHeight,
-  ]);
+  }, [shape.id, onDragMove]);
 
   const handleDragEnd = useCallback(() => {
     _setIsDragging(false);
@@ -124,9 +120,16 @@ export const FrameShape = memo(function FrameShape({
   }, [shape.id, onShapeChange]);
 
   // Frame-specific styling: distinct from regular rectangles
-  const strokeColor = isSelected ? "#8b5cf6" : "#6366f1"; // Purple color for frames
-  const strokeWidth = 2;
+  const strokeColor = isDraggedOver
+    ? "#10b981" // Green when drop target
+    : isSelected
+    ? "#8b5cf6" // Purple when selected
+    : "#6366f1"; // Default purple
+  const strokeWidth = isDraggedOver ? 4 : 2;
   const dashEnabled = true; // Dashed border to distinguish from regular rectangles
+  const fillColor = isDraggedOver
+    ? (shape.fill || "#ffffff") + "99" // Add transparency when drop target
+    : shape.fill || "#ffffff";
 
   // Calculate font size that scales inversely with zoom to maintain readability
   const labelFontSize = 12 / scale;
@@ -140,12 +143,13 @@ export const FrameShape = memo(function FrameShape({
         y={shape.y}
         width={shape.width || 300}
         height={shape.height || 200}
-        fill={shape.fill || "#ffffff"} // Use shape fill, default to white
+        fill={fillColor}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         dash={dashEnabled ? [10, 5] : undefined}
         rotation={shape.rotation || 0}
-        draggable={true}
+        draggable={!!onDragStart}
+        dragBoundFunc={onDragStart ? dragBoundFunc : undefined}
         transformsEnabled="all"
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}

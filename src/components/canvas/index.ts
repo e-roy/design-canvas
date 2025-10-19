@@ -7,3 +7,6 @@ export { Cursor, CursorsOverlay } from "./cursor";
 export { PropertiesPanel } from "./properties-panel";
 export { CustomSidebarTrigger } from "./sidebar-triggers";
 export { Toolbar } from "./toolbar";
+export { LayerTree } from "./layer-tree";
+export { NodeContextMenu } from "./node-context-menu";
+export { NodeTreeRenderer, NodeTreeListRenderer } from "./node-tree-renderer";

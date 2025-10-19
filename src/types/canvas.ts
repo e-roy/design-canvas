@@ -119,6 +119,9 @@ export interface CanvasViewport {
 export interface Shape {
   id: string;
   canvasId: string;
+  pageId?: string;
+  parentId?: string | null;
+  orderKey?: number;
   type:
     | "rectangle"
     | "circle"

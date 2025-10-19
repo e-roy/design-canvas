@@ -20,8 +20,15 @@ import { updateNode, updateNodeTx } from "@/services/nodeTransactions";
 /**
  * Hook to manage nodes for a canvas page
  * Handles subscription and CRUD operations
+ * @param canvasId - Canvas ID
+ * @param pageId - Page ID
+ * @param parentId - Optional parent ID to filter by (undefined = all nodes, null = root only)
  */
-export function useNodes(canvasId: string | null, pageId: string | null) {
+export function useNodes(
+  canvasId: string | null,
+  pageId: string | null,
+  parentId?: string | null
+) {
   const setNodes = useCanvasSetNodes();
 
   // Subscribe to nodes changes for the current page
@@ -32,11 +39,24 @@ export function useNodes(canvasId: string | null, pageId: string | null) {
       return;
     }
 
-    const nodesQuery = query(
-      collection(db, `canvases/${canvasId}/nodes`),
-      where("pageId", "==", pageId),
-      orderBy("orderKey", "asc")
-    );
+    // Build query based on whether parentId is specified
+    let nodesQuery;
+    if (parentId !== undefined) {
+      // Query for specific parent (null = root, string = specific parent)
+      nodesQuery = query(
+        collection(db, `canvases/${canvasId}/nodes`),
+        where("pageId", "==", pageId),
+        where("parentId", "==", parentId),
+        orderBy("orderKey", "asc")
+      );
+    } else {
+      // Query all nodes on page (backward compatibility)
+      nodesQuery = query(
+        collection(db, `canvases/${canvasId}/nodes`),
+        where("pageId", "==", pageId),
+        orderBy("orderKey", "asc")
+      );
+    }
 
     const unsubscribe = onSnapshot(
       nodesQuery,
@@ -59,7 +79,7 @@ export function useNodes(canvasId: string | null, pageId: string | null) {
     return () => {
       unsubscribe();
     };
-  }, [canvasId, pageId, setNodes]);
+  }, [canvasId, pageId, parentId, setNodes]);
 
   // Create a new node
   const createNode = useCallback(

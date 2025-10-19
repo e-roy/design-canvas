@@ -4,3 +4,4 @@ export { TextShape } from "./text";
 export { LineShape } from "./line";
 export { TriangleShape } from "./triangle";
 export { FrameShape } from "./frame";
+export { GroupShape } from "./group";

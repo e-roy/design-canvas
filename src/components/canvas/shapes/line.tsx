@@ -42,12 +42,6 @@ export const LineShape = memo(function LineShape({
   const handleLineDragStart = useCallback(() => {
     _setIsDragging(true);
     onDragStart?.(shape.id);
-
-    // Bring to front
-    const line = lineRef.current;
-    if (line) {
-      line.moveToTop();
-    }
   }, [shape.id, onDragStart]);
 
   const handleLineDragMove = useCallback(() => {
@@ -253,7 +247,7 @@ export const LineShape = memo(function LineShape({
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         rotation={shape.rotation || 0}
-        draggable={true}
+        draggable={!!onDragStart}
         onDragStart={handleLineDragStart}
         onDragMove={handleLineDragMove}
         onDragEnd={handleLineDragEnd}

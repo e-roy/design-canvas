@@ -47,6 +47,8 @@ import { ConnectionStatus } from "@/components/connection-status";
 import { CursorPosition, Shape } from "@/types";
 import { NodeDoc } from "@/types/page";
 import { cursorManager } from "@/lib/cursor-manager";
+import { reorderSiblingTx, reparentTx } from "@/services/nodes";
+import type { DropPosition } from "@/hooks/useLayerDragDrop";
 
 // Use a fixed document ID for the main collaborative canvas
 const MAIN_CANVAS_ID = "main-collaborative-canvas";
@@ -325,23 +327,19 @@ export default function CanvasPage() {
   );
 
   const handleShapeVisibilityToggle = useCallback(
-    async (shapeId: string) => {
+    async (shapeId: string, visible: boolean) => {
       if (!user) return;
       try {
-        const node = nodes.find((n) => n.id === shapeId);
-        if (node) {
-          const newVisibility = !node.isVisible;
-          await nodesActions.updateNode(
-            shapeId,
-            { isVisible: newVisibility },
-            user.uid
-          );
-        }
+        await nodesActions.updateNode(
+          shapeId,
+          { isVisible: visible },
+          user.uid
+        );
       } catch (error) {
         console.error("Error toggling shape visibility:", error);
       }
     },
-    [nodesActions, nodes, user]
+    [nodesActions, user]
   );
 
   // Memoized sidebar toggle handlers with persistence
@@ -439,6 +437,75 @@ export default function CanvasPage() {
     [nodesActions, user]
   );
 
+  const handleNodeReorder = useCallback(
+    async (
+      draggedNodeId: string,
+      targetNodeId: string,
+      position: DropPosition
+    ) => {
+      if (!user || !documentId) return;
+
+      try {
+        const draggedNode = nodes.find((n) => n.id === draggedNodeId);
+        const targetNode = nodes.find((n) => n.id === targetNodeId);
+
+        if (!draggedNode || !targetNode) return;
+
+        // Determine if this is a reparent or reorder operation
+        if (position === "inside") {
+          // Reparenting into a container (frame or group)
+          if (targetNode.type !== "frame" && targetNode.type !== "group") {
+            console.warn("Cannot nest inside non-container node");
+            return;
+          }
+
+          // Reparent to be first child of target
+          await reparentTx(
+            documentId,
+            draggedNodeId,
+            targetNodeId,
+            null, // insertBeforeId
+            null, // insertAfterId
+            user.uid
+          );
+        } else {
+          // Check if we're moving within the same parent or changing parents
+          const newParentId = targetNode.parentId;
+
+          if (draggedNode.parentId === newParentId) {
+            // Same parent - just reorder
+            const beforeId = position === "before" ? targetNodeId : null;
+            const afterId = position === "after" ? targetNodeId : null;
+
+            await reorderSiblingTx(
+              documentId,
+              draggedNodeId,
+              beforeId,
+              afterId,
+              user.uid
+            );
+          } else {
+            // Different parent - reparent with position
+            const beforeId = position === "before" ? targetNodeId : null;
+            const afterId = position === "after" ? targetNodeId : null;
+
+            await reparentTx(
+              documentId,
+              draggedNodeId,
+              newParentId,
+              beforeId,
+              afterId,
+              user.uid
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error reordering node:", error);
+      }
+    },
+    [nodes, documentId, user]
+  );
+
   const handleDeletePage = useCallback(
     async (pageId: string) => {
       if (!user) return;
@@ -510,6 +577,9 @@ export default function CanvasPage() {
       nodes.map((node) => ({
         id: node.id,
         canvasId: "default", // Use default for now
+        pageId: node.pageId,
+        parentId: node.parentId,
+        orderKey: node.orderKey,
         type: node.type,
         name: node.name, // Include custom name from database
         x: node.x || 0,
@@ -673,6 +743,7 @@ export default function CanvasPage() {
               onShapeSelect={handleShapeSelect}
               onShapeVisibilityToggle={handleShapeVisibilityToggle}
               onRenameNode={handleRenameNode}
+              onNodeReorder={handleNodeReorder}
             />
           </SidebarContent>
 

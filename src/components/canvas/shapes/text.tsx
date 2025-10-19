@@ -37,12 +37,6 @@ export const TextShape = memo(function TextShape({
   const handleDragStart = useCallback(() => {
     _setIsDragging(true);
     onDragStart?.(shape.id);
-
-    // Bring to front
-    const text = textRef.current;
-    if (text) {
-      text.moveToTop();
-    }
   }, [shape.id, onDragStart]);
 
   const handleDragMove = useCallback(() => {
@@ -120,7 +114,7 @@ export const TextShape = memo(function TextShape({
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         rotation={shape.rotation || 0}
-        draggable={true}
+        draggable={!!onDragStart}
         transformsEnabled="all"
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
