@@ -15,16 +15,6 @@
       ]
     },
     {
-      "collectionGroup": "pages",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "index",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "nodes",
       "queryScope": "COLLECTION",
       "fields": [
