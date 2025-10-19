@@ -4,7 +4,9 @@ export { useCursorStore } from "./cursor-store";
 export {
   useCanvasStore,
   useCanvasDocument,
-  useCanvasShapes,
+  useCanvasNodes,
+  useCanvasPages,
+  useCanvasCurrentPageId,
   useCanvasLoading,
   useCanvasError,
   useCanvasViewport,

@@ -16,7 +16,14 @@ export interface CanvasDocument {
 
 export interface StoredShape {
   canvasId: string; // NEW: future rooms/pages compatibility
-  type: "rectangle" | "circle" | "text" | "line" | "triangle";
+  type:
+    | "rectangle"
+    | "circle"
+    | "text"
+    | "line"
+    | "triangle"
+    | "frame"
+    | "group";
   x: number;
   y: number;
   width?: number;
@@ -112,7 +119,14 @@ export interface CanvasViewport {
 export interface Shape {
   id: string;
   canvasId: string;
-  type: "rectangle" | "circle" | "text" | "line" | "triangle";
+  type:
+    | "rectangle"
+    | "circle"
+    | "text"
+    | "line"
+    | "triangle"
+    | "frame"
+    | "group";
   x: number;
   y: number;
   width?: number;
@@ -170,6 +184,8 @@ export interface CanvasProps {
   showGrid?: boolean;
   className?: string;
   shapes?: Shape[];
+  canvasId?: string;
+  currentPageId?: string | null;
   onShapeCreate?: (shape: Shape) => void;
   onShapeUpdate?: (shapeId: string, updates: Partial<Shape>) => void;
   onShapeDelete?: (shapeId: string) => void;
@@ -183,7 +199,15 @@ export interface CanvasProps {
       | "line"
       | "triangle"
   ) => void;
-  onMouseMove?: (position: import("@/types").CursorPosition) => void;
+  onMouseMove?: (
+    position: import("@/types").CursorPosition,
+    viewport: { x: number; y: number; scale: number }
+  ) => void;
+  onViewportChange?: (viewport: {
+    x: number;
+    y: number;
+    scale: number;
+  }) => void;
   currentUserId?: string;
 }
 

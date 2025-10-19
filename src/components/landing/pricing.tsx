@@ -45,17 +45,6 @@ const badgeVariants = {
   },
 };
 
-const pulseVariants = {
-  animate: {
-    scale: [1, 1.05, 1],
-    transition: {
-      duration: 2,
-      repeat: Infinity,
-      ease: "easeInOut",
-    },
-  },
-};
-
 export function Pricing() {
   const shouldReduceMotion = useReducedMotion();
 

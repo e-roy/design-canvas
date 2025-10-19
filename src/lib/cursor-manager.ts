@@ -1,6 +1,11 @@
 import { ref, set, update, onValue, onDisconnect } from "firebase/database";
 import { realtimeDb } from "@/lib/firebase";
-import { CursorPosition, CanvasCursorState, CursorConfig } from "@/types";
+import {
+  CursorPosition,
+  CanvasCursorState,
+  CursorConfig,
+  UserCursor,
+} from "@/types";
 import { generateUserColor } from "@/utils/color";
 import { User } from "@/store/user-store";
 
@@ -21,6 +26,8 @@ export class CursorManager {
   private lastCall: number = 0;
   private timeout: NodeJS.Timeout | null = null;
   private pendingUpdate: CursorPosition | null = null;
+  private pendingViewport: { x: number; y: number; scale: number } | undefined =
+    undefined;
 
   constructor(canvasId: string, config?: Partial<CursorConfig>) {
     this.canvasId = canvasId;
@@ -62,8 +69,10 @@ export class CursorManager {
       color: this.userColor,
       photoURL: user.photoURL,
       currentProject: this.canvasId,
+      currentPage: null, // Will be set by updateCurrentPage
       x: 0,
       y: 0,
+      viewport: { x: 0, y: 0, scale: 1 }, // Store user's viewport for accurate cursor rendering
       timestamp: Date.now(),
       lastSeen: Date.now(),
       isOnline: true,
@@ -90,7 +99,10 @@ export class CursorManager {
     // }, this.config.updateInterval);
   }
 
-  updateCursorPosition(position: CursorPosition): void {
+  updateCursorPosition(
+    position: CursorPosition,
+    viewport?: { x: number; y: number; scale: number }
+  ): void {
     if (!this.currentUser) {
       return;
     }
@@ -105,10 +117,11 @@ export class CursorManager {
       );
 
       // Update only the position to indicate off-screen, preserve user data
+
       update(cursorRef, {
         x: -1000, // Off-screen marker
         y: -1000, // Off-screen marker
-        t: Date.now(),
+        timestamp: Date.now(),
       }).catch((error) => {
         console.error("Error updating off-screen cursor:", error);
       });
@@ -117,6 +130,7 @@ export class CursorManager {
 
     // Store the latest update (similar to shape throttling)
     this.pendingUpdate = position;
+    this.pendingViewport = viewport; // Store viewport with cursor position
 
     const now = Date.now();
     const remaining = 100 - (now - this.lastCall); // 100ms throttling like shapes
@@ -137,10 +151,26 @@ export class CursorManager {
     }
   }
 
+  updateCurrentPage(pageId: string | null): void {
+    if (!this.currentUser) {
+      return;
+    }
+
+    const cursorRef = ref(realtimeDb, this.getCursorPath(this.currentUser.uid));
+
+    update(cursorRef, {
+      currentPage: pageId,
+      lastSeen: Date.now(),
+    }).catch((error) => {
+      console.error("Error updating current page:", error);
+    });
+  }
+
   private performCursorUpdate(): void {
     if (!this.currentUser || !this.pendingUpdate) return;
 
     const position = this.pendingUpdate;
+    const viewport = this.pendingViewport;
     const timestamp = Date.now();
 
     this.lastPosition = {
@@ -150,24 +180,40 @@ export class CursorManager {
 
     const cursorRef = ref(realtimeDb, this.getCursorPath(this.currentUser.uid));
 
-    // Minimal payload for fastest writes - only essential position data
-    const updateData = {
+    // Include viewport with cursor position for synchronized rendering
+    const updateData: {
+      x: number;
+      y: number;
+      timestamp: number;
+      viewport?: { x: number; y: number; scale: number };
+    } = {
       x: Math.round(position.x * 100) / 100, // Round to 2 decimal places
       y: Math.round(position.y * 100) / 100, // Round to 2 decimal places
-      t: timestamp, // Shortened field name
+      timestamp: timestamp, // Use consistent field name for cleanup logic
     };
+
+    // Include viewport if provided for accurate cursor positioning across zoom levels
+    if (viewport) {
+      updateData.viewport = {
+        x: Math.round(viewport.x * 100) / 100,
+        y: Math.round(viewport.y * 100) / 100,
+        scale: Math.round(viewport.scale * 1000) / 1000,
+      };
+    }
 
     // Use update to only modify position fields, preserving user metadata
     update(cursorRef, updateData).catch((error) => {
       console.error("Error updating cursor position:", error);
     });
 
-    // Clear pending update
+    // Clear pending updates
     this.pendingUpdate = null;
+    this.pendingViewport = undefined;
   }
 
   subscribeToCanvasCursors(
-    callback: (cursors: CanvasCursorState) => void
+    callback: (cursors: CanvasCursorState) => void,
+    currentPageId?: string | null
   ): () => void {
     const cursorsRef = ref(realtimeDb, this.getCursorPath());
 
@@ -186,92 +232,37 @@ export class CursorManager {
         // Process each user's cursor data
         Object.entries(data).forEach(([userId, cursorData]) => {
           if (cursorData && typeof cursorData === "object") {
-            // Handle both old format (with position object) and new format (flat properties)
-            let x, y, timestamp, displayName, color, photoURL, currentProject;
+            const cursor = cursorData as Partial<UserCursor>;
 
-            if ("position" in cursorData && cursorData.position) {
-              // Old format with position object (for backward compatibility)
-              const cursor = cursorData as {
-                displayName?: string;
-                email?: string;
-                color?: string;
-                photoURL?: string | null;
-                currentProject?: string | null;
-                position: {
-                  x?: number;
-                  y?: number;
-                  timestamp?: number | { toMillis?: () => number };
-                };
-              };
-              x = cursor.position?.x || 0;
-              y = cursor.position?.y || 0;
-              displayName =
-                cursor.displayName ||
-                cursor.email?.split("@")[0] ||
-                "Anonymous";
-              color = cursor.color || "#000000";
-              photoURL = cursor.photoURL || null;
-              currentProject = cursor.currentProject || null;
-
-              // Handle timestamp
-              const cursorTimestamp = cursor.position?.timestamp || 0;
-              timestamp =
-                typeof cursorTimestamp === "object" && cursorTimestamp?.toMillis
-                  ? cursorTimestamp.toMillis()
-                  : typeof cursorTimestamp === "number"
-                  ? cursorTimestamp
-                  : 0;
-            } else {
-              // New optimized format with minimal fields
-              const cursor = cursorData as {
-                displayName?: string;
-                email?: string;
-                color?: string;
-                photoURL?: string | null;
-                currentProject?: string | null;
-                x?: number;
-                y?: number;
-                t?: number; // Shortened timestamp field
-                timestamp?: number | { toMillis?: () => number };
-              };
-              x = cursor.x || 0;
-              y = cursor.y || 0;
-              displayName =
-                cursor.displayName ||
-                cursor.email?.split("@")[0] ||
-                "Anonymous";
-              color = cursor.color || "#000000";
-              photoURL = cursor.photoURL || null;
-              currentProject = cursor.currentProject || null;
-
-              // Handle timestamp - check both 't' and 'timestamp' fields
-              const cursorTimestamp = cursor.t || cursor.timestamp || 0;
-              timestamp =
-                typeof cursorTimestamp === "object" && cursorTimestamp?.toMillis
-                  ? cursorTimestamp.toMillis()
-                  : typeof cursorTimestamp === "number"
-                  ? cursorTimestamp
-                  : 0;
+            // Filter by current page if specified
+            if (currentPageId && cursor.currentPage !== currentPageId) {
+              return; // Skip cursors from other pages
             }
 
             // Check if cursor is still fresh (within cleanup threshold)
             const now = Date.now();
+            const timestamp = cursor.timestamp || 0;
 
             if (
               timestamp > 0 &&
               now - timestamp < this.config.cleanupThreshold
             ) {
               // Don't show cursors that are off-screen (marked with -1000)
+              const x = cursor.x || 0;
+              const y = cursor.y || 0;
+
               if (x !== -1000 && y !== -1000) {
                 cursors[userId] = {
                   userId,
-                  displayName,
-                  color,
-                  photoURL,
-                  currentProject,
+                  displayName: cursor.displayName || "Anonymous",
+                  color: cursor.color || "#000000",
+                  photoURL: cursor.photoURL || null,
+                  currentProject: cursor.currentProject || null,
+                  currentPage: cursor.currentPage || null,
                   x,
                   y,
-                  timestamp: timestamp || 0,
+                  viewport: cursor.viewport, // Include user's viewport for accurate cursor rendering
+                  timestamp,
                   isOnline: true,
                 };
               }

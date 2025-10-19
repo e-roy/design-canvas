@@ -6,12 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { StoredShapeWithId } from "@/types";
-import { Trash2, Square, Circle, Type, Minus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { NodeDoc } from "@/types/page";
+import { Trash2, Square, Circle, Type, Minus, User } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { useCursorStore } from "@/store/cursor-store";
+import { useUserStore } from "@/store/user-store";
 
 interface PropertiesPanelProps {
-  selectedShape: StoredShapeWithId | null;
-  onShapeUpdate: (shapeId: string, updates: Partial<StoredShapeWithId>) => void;
+  selectedShape: NodeDoc | null;
+  onShapeUpdate: (shapeId: string, updates: Partial<NodeDoc>) => void;
   onShapeDelete: (shapeId: string) => void;
 }
 
@@ -21,10 +25,12 @@ export const PropertiesPanel = memo(function PropertiesPanel({
   onShapeDelete,
 }: PropertiesPanelProps) {
   // Local state for input values to prevent conflicts with rapid typing
-  const [localValues, setLocalValues] = useState<Partial<StoredShapeWithId>>(
-    {}
-  );
+  const [localValues, setLocalValues] = useState<Partial<NodeDoc>>({});
   const updateTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Get cursor store to look up user display names
+  const { cursors } = useCursorStore();
+  const { user: currentUser } = useUserStore();
 
   // Update local values when selectedShape changes
   useEffect(() => {
@@ -37,7 +43,7 @@ export const PropertiesPanel = memo(function PropertiesPanel({
 
   // Immediate update for text content to prevent character loss
   const immediateUpdate = useCallback(
-    (property: keyof StoredShapeWithId, value: string | number) => {
+    (property: keyof NodeDoc, value: string | number) => {
       if (!selectedShape) return;
 
       // Update local state immediately for responsive UI
@@ -51,7 +57,7 @@ export const PropertiesPanel = memo(function PropertiesPanel({
 
   // Debounced update function for non-text properties
   const debouncedUpdate = useCallback(
-    (property: keyof StoredShapeWithId, value: string | number) => {
+    (property: keyof NodeDoc, value: string | number) => {
       if (!selectedShape) return;
 
       // Clear existing timeout for this property
@@ -81,6 +87,45 @@ export const PropertiesPanel = memo(function PropertiesPanel({
       });
     };
   }, []);
+
+  // Format the last updated time - MUST be before any conditional returns (Rules of Hooks)
+  const getLastEditedText = useCallback(() => {
+    if (!selectedShape?.updatedAt) return null;
+
+    try {
+      const timestamp = selectedShape.updatedAt;
+      // Handle Firestore Timestamp
+      const date = timestamp?.toDate
+        ? timestamp.toDate()
+        : new Date(timestamp as unknown as string);
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch (error) {
+      console.error("Error formatting timestamp:", error);
+      return null;
+    }
+  }, [selectedShape?.updatedAt]);
+
+  // Get user display name or email from updatedBy UID - MUST be before any conditional returns (Rules of Hooks)
+  const getEditorDisplay = useCallback(() => {
+    if (!selectedShape?.updatedBy) return "Unknown";
+
+    const uid = selectedShape.updatedBy;
+
+    // Check if this is the current user
+    if (currentUser && uid === currentUser.uid) {
+      return "You";
+    }
+
+    // Look up the user in cursor data (which has display names)
+    const cursor = cursors[uid];
+    if (cursor?.displayName) {
+      return cursor.displayName;
+    }
+
+    // Fallback to shortened UID if user not found in cursors
+    // This can happen if the user is offline or hasn't joined yet
+    return uid.substring(0, 8) + "...";
+  }, [selectedShape?.updatedBy, cursors, currentUser]);
 
   if (!selectedShape) {
     return (
@@ -127,6 +172,16 @@ export const PropertiesPanel = memo(function PropertiesPanel({
             {getShapeIcon()}
             <span className="capitalize">{selectedShape.type}</span>
           </CardTitle>
+
+          {/* Last Edited Info */}
+          {selectedShape.updatedBy && getLastEditedText() && (
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="secondary" className="text-xs font-normal">
+                <User className="w-3 h-3 mr-1" />
+                Edited by {getEditorDisplay()} {getLastEditedText()}
+              </Badge>
+            </div>
+          )}
         </CardHeader>
         <Separator />
         <CardContent className="space-y-4">

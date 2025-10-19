@@ -1,24 +1,18 @@
-import {
-  getDatabase,
-  ref,
-  onDisconnect,
-  set,
-  update,
-  onValue,
-} from "firebase/database";
+import { ref, onDisconnect, set, update, onValue } from "firebase/database";
 import { useEffect, useRef, useCallback } from "react";
-
-const rtdb = getDatabase();
+import { realtimeDb } from "@/lib/firebase";
 
 export function usePresence(
   canvasId: string,
-  user: { uid: string; name: string; color: string }
+  user: { uid: string; name: string; color: string },
+  currentPageId?: string
 ) {
-  const baseRef = ref(rtdb, `presence/${canvasId}/${user.uid}`);
+  const baseRef = ref(realtimeDb, `presence/${canvasId}/${user.uid}`);
   const initialized = useRef(false);
   const lastCursorUpdate = useRef(0);
   const lastSelectionUpdate = useRef(0);
   const lastGestureUpdate = useRef(0);
+  const lastViewportUpdate = useRef(0);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -32,6 +26,8 @@ export function usePresence(
         cursor: { x: 0, y: 0 },
         selection: [],
         gesture: null,
+        pageId: currentPageId || null,
+        viewport: { x: 0, y: 0, scale: 1 }, // Store user's viewport for follow feature
         lastSeen: Date.now(),
       });
 
@@ -85,10 +81,45 @@ export function usePresence(
       if (user.uid && user.uid !== "anonymous") {
         const now = Date.now();
         // For null gestures (clearing), update immediately to prevent ghost objects
-        // For active gestures, throttle to max 5 per second
-        if (gesture === null || now - lastGestureUpdate.current > 200) {
+        // For active gestures, throttle to 50ms for smooth real-time updates (20 FPS)
+        if (gesture === null || now - lastGestureUpdate.current > 50) {
           lastGestureUpdate.current = now;
           update(baseRef, { gesture, lastSeen: now });
+        }
+      }
+    },
+    [baseRef, user.uid]
+  );
+
+  // Update current page in presence
+  const updatePage = useCallback(
+    (pageId: string | null) => {
+      if (user.uid && user.uid !== "anonymous") {
+        update(baseRef, {
+          pageId,
+          lastSeen: Date.now(),
+        });
+      }
+    },
+    [baseRef, user.uid]
+  );
+
+  // Update viewport in presence (for follow feature and accurate cursor positioning)
+  const updateViewport = useCallback(
+    (viewport: { x: number; y: number; scale: number }) => {
+      if (user.uid && user.uid !== "anonymous") {
+        const now = Date.now();
+        // Throttle viewport updates to max 5 per second to reduce bandwidth
+        if (now - lastViewportUpdate.current > 200) {
+          lastViewportUpdate.current = now;
+          update(baseRef, {
+            viewport: {
+              x: Math.round(viewport.x * 100) / 100,
+              y: Math.round(viewport.y * 100) / 100,
+              scale: Math.round(viewport.scale * 1000) / 1000,
+            },
+            lastSeen: now,
+          });
         }
       }
     },
@@ -111,12 +142,19 @@ export function usePresence(
         >
       ) => void
     ) => {
-      return onValue(ref(rtdb, `presence/${canvasId}`), (snap) =>
+      return onValue(ref(realtimeDb, `presence/${canvasId}`), (snap) =>
         cb(snap.val() ?? {})
       );
     },
     [canvasId]
   );
 
-  return { updateCursor, updateSelection, updateGesture, subscribePeers };
+  return {
+    updateCursor,
+    updateSelection,
+    updateGesture,
+    updatePage,
+    updateViewport,
+    subscribePeers,
+  };
 }

@@ -3,15 +3,20 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { canvasService } from "@/lib/canvas-service";
 import { canvasSeeder } from "@/lib/canvas-seeder";
 import { useUserStore } from "./user-store";
-import { CanvasDocument, StoredShape, StoredShapeWithId } from "@/types";
+import { CanvasDocument } from "@/types";
+import { PageDoc, NodeDoc } from "@/types/page";
 
 interface CanvasState {
   // Document state
   canvasDocument: CanvasDocument | null;
   documentId: string | null;
 
-  // Shapes state
-  shapes: StoredShapeWithId[];
+  // Pages state
+  pages: PageDoc[];
+  currentPageId: string | null;
+
+  // Nodes state (replaces shapes)
+  nodes: NodeDoc[];
 
   // Loading and error states
   isLoading: boolean;
@@ -46,6 +51,8 @@ interface CanvasState {
   subscriptions: {
     canvas: (() => void) | null;
     cursors: (() => void) | null;
+    pages: (() => void) | null;
+    nodes: (() => void) | null;
   };
 }
 
@@ -54,19 +61,8 @@ interface CanvasActions {
   setDocumentId: (documentId: string | null) => void;
   loadCanvas: (documentId: string) => Promise<void>;
 
-  // Shape management
-  saveShape: (
-    shapeData: Omit<
-      StoredShape,
-      "id" | "createdAt" | "updatedAt" | "updatedBy" | "version"
-    >
-  ) => Promise<string>;
-  updateShape: (
-    shapeId: string,
-    updates: Partial<StoredShape>
-  ) => Promise<void>;
-  toggleShapeVisibility: (shapeId: string) => Promise<void>;
-  deleteShape: (shapeId: string) => Promise<void>;
+  // Page management
+  setCurrentPageId: (pageId: string | null) => void;
 
   // Viewport management
   updateViewport: (viewport: {
@@ -76,6 +72,8 @@ interface CanvasActions {
   }) => Promise<void>;
   setViewport: (viewport: { x: number; y: number; scale: number }) => void;
   loadViewportFromStorage: () => void;
+  loadPageFromStorage: () => void;
+  savePageToStorage: (pageId: string) => void;
 
   // Collaboration management
   addCollaborator: (userId: string) => Promise<void>;
@@ -104,18 +102,20 @@ interface CanvasActions {
   endDrag: (shapeId: string) => void;
   clearDragState: () => void;
 
-  // State updates (called by Firebase subscriptions)
-  updateCanvasData: (data: {
-    document: CanvasDocument;
-    shapes: StoredShapeWithId[];
-  }) => void;
-
   // Error handling
   setError: (error: string | null) => void;
   clearError: () => void;
 
   // Subscription management
-  setupSubscriptions: (documentId: string) => void;
+  setupSubscriptions: (_documentId: string) => Promise<void>;
+  setPages: (pages: PageDoc[]) => void;
+  setNodes: (nodes: NodeDoc[]) => void;
+  setSubscriptions: (subscriptions: {
+    canvas: (() => void) | null;
+    cursors: (() => void) | null;
+    pages: (() => void) | null;
+    nodes: (() => void) | null;
+  }) => void;
 
   // Cleanup
   cleanup: () => void;
@@ -127,7 +127,9 @@ type CanvasStore = CanvasState & CanvasActions;
 const initialState: CanvasState = {
   canvasDocument: null,
   documentId: null,
-  shapes: [],
+  pages: [],
+  currentPageId: null,
+  nodes: [],
   isLoading: false,
   error: null,
   viewport: { x: 1900, y: 2100, scale: 1 }, // Centered for 5000x5000 virtual canvas
@@ -138,6 +140,8 @@ const initialState: CanvasState = {
   subscriptions: {
     canvas: null,
     cursors: null,
+    pages: null,
+    nodes: null,
   },
 };
 
@@ -171,6 +175,7 @@ export const useCanvasStore = create<CanvasStore>()(
       set({ isLoading: true, error: null });
 
       try {
+        // Load the canvas document
         let result = await canvasService.loadCanvas(documentId);
 
         // If canvas doesn't exist, try to seed it
@@ -200,12 +205,11 @@ export const useCanvasStore = create<CanvasStore>()(
         if (result) {
           set({
             canvasDocument: result.document,
-            shapes: result.shapes,
             isLoading: false,
           });
 
-          // Set up real-time subscriptions
-          get().setupSubscriptions(documentId);
+          // Set up real-time subscriptions for pages and nodes
+          await get().setupSubscriptions(documentId);
         } else {
           set({
             error: "Failed to create or load canvas",
@@ -221,86 +225,12 @@ export const useCanvasStore = create<CanvasStore>()(
       }
     },
 
-    // Shape management
-    saveShape: async (shapeData) => {
-      const { canvasDocument } = get();
-      const { user: currentUser } = useUserStore.getState();
-
-      if (!currentUser || !canvasDocument) {
-        throw new Error("User not authenticated or canvas not loaded");
-      }
-
-      try {
-        const shapeId = await canvasService.saveShape(
-          canvasDocument.id,
-          shapeData
-        );
-        return shapeId;
-      } catch (err) {
-        console.error("Error saving shape:", err);
-        set({ error: "Failed to save shape" });
-        throw err;
-      }
-    },
-
-    updateShape: async (shapeId, updates) => {
-      const { canvasDocument } = get();
-      const { user } = useUserStore.getState();
-
-      if (!user || !canvasDocument) {
-        throw new Error("User not authenticated or canvas not loaded");
-      }
-
-      try {
-        await canvasService.updateShape(shapeId, updates, user.uid);
-      } catch (err) {
-        console.error("Error updating shape:", err);
-        set({ error: "Failed to update shape" });
-        throw err;
-      }
-    },
-
-    toggleShapeVisibility: async (shapeId) => {
-      const { canvasDocument, shapes } = get();
-      const { user } = useUserStore.getState();
-
-      if (!user || !canvasDocument) {
-        throw new Error("User not authenticated or canvas not loaded");
-      }
-
-      const shape = shapes.find((s) => s.id === shapeId);
-      if (!shape) {
-        throw new Error("Shape not found");
-      }
-
-      try {
-        const newVisibility = !shape.visible;
-        await canvasService.updateShape(
-          shapeId,
-          { visible: newVisibility },
-          user.uid
-        );
-      } catch (err) {
-        console.error("Error toggling shape visibility:", err);
-        set({ error: "Failed to toggle shape visibility" });
-        throw err;
-      }
-    },
-
-    deleteShape: async (shapeId) => {
-      const { canvasDocument } = get();
-      const { user } = useUserStore.getState();
-
-      if (!user || !canvasDocument) {
-        throw new Error("User not authenticated or canvas not loaded");
-      }
-
-      try {
-        await canvasService.deleteShape(shapeId, canvasDocument.id, user.uid);
-      } catch (err) {
-        console.error("Error deleting shape:", err);
-        set({ error: "Failed to delete shape" });
-        throw err;
+    // Page management
+    setCurrentPageId: (pageId) => {
+      set({ currentPageId: pageId });
+      // Save to localStorage for persistence
+      if (pageId) {
+        get().savePageToStorage(pageId);
       }
     },
 
@@ -349,6 +279,35 @@ export const useCanvasStore = create<CanvasStore>()(
           }
         } catch (error) {
           console.warn("Failed to load viewport from localStorage:", error);
+        }
+      }
+    },
+
+    loadPageFromStorage: () => {
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("design-canvas-current-page");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (typeof parsed.pageId === "string") {
+              set({ currentPageId: parsed.pageId });
+            }
+          }
+        } catch (error) {
+          console.warn("Failed to load current page from localStorage:", error);
+        }
+      }
+    },
+
+    savePageToStorage: (pageId: string) => {
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            "design-canvas-current-page",
+            JSON.stringify({ pageId })
+          );
+        } catch (error) {
+          console.warn("Failed to save current page to localStorage:", error);
         }
       }
     },
@@ -445,40 +404,28 @@ export const useCanvasStore = create<CanvasStore>()(
 
     clearDragState: () => set({ draggingShapes: {} }),
 
-    // State updates (called by Firebase subscriptions)
-    updateCanvasData: (data) => {
-      set({
-        canvasDocument: data.document,
-        shapes: data.shapes,
-      });
-    },
-
     // Error handling
     setError: (error) => set({ error }),
     clearError: () => set({ error: null }),
 
     // Setup subscriptions
-    setupSubscriptions: (documentId) => {
+    setupSubscriptions: async (_documentId) => {
       const { subscriptions } = get();
 
       // Cleanup existing subscriptions
       if (subscriptions.canvas) subscriptions.canvas();
+      if (subscriptions.pages) subscriptions.pages();
+      if (subscriptions.nodes) subscriptions.nodes();
 
-      // Subscribe to canvas changes
-      const canvasUnsubscribe = canvasService.subscribeToCanvas(
-        documentId,
-        (data) => {
-          get().updateCanvasData(data);
-        }
-      );
-
-      set({
-        subscriptions: {
-          canvas: canvasUnsubscribe,
-          cursors: null,
-        },
-      });
+      // Note: Subscriptions are now handled at the component level
+      // This function is kept for compatibility but doesn't do anything
+      // console.log("Subscriptions should be set up at component level");
     },
+
+    // Setter functions for subscriptions
+    setPages: (pages) => set({ pages }),
+    setNodes: (nodes) => set({ nodes }),
+    setSubscriptions: (subscriptions) => set({ subscriptions }),
 
     // Cleanup
     cleanup: () => {
@@ -487,11 +434,19 @@ export const useCanvasStore = create<CanvasStore>()(
       if (subscriptions.canvas) {
         subscriptions.canvas();
       }
+      if (subscriptions.pages) {
+        subscriptions.pages();
+      }
+      if (subscriptions.nodes) {
+        subscriptions.nodes();
+      }
 
       set({
         subscriptions: {
           canvas: null,
           cursors: null,
+          pages: null,
+          nodes: null,
         },
       });
     },
@@ -507,7 +462,7 @@ export const useCanvasStore = create<CanvasStore>()(
 // Selectors for optimized component subscriptions
 export const useCanvasDocument = () =>
   useCanvasStore((state) => state.canvasDocument);
-export const useCanvasShapes = () => useCanvasStore((state) => state.shapes);
+export const useCanvasNodes = () => useCanvasStore((state) => state.nodes);
 export const useCanvasLoading = () =>
   useCanvasStore((state) => state.isLoading);
 export const useCanvasError = () => useCanvasStore((state) => state.error);
@@ -521,25 +476,26 @@ export const useSelectedShapeIds = () =>
 export const useDraggingShapes = () =>
   useCanvasStore((state) => state.draggingShapes);
 
+// Page selectors
+export const useCanvasPages = () => useCanvasStore((state) => state.pages);
+export const useCanvasCurrentPageId = () =>
+  useCanvasStore((state) => state.currentPageId);
+
 // Individual action selectors to prevent re-renders
 export const useCanvasSetDocumentId = () =>
   useCanvasStore((state) => state.setDocumentId);
 export const useCanvasLoadCanvas = () =>
   useCanvasStore((state) => state.loadCanvas);
-export const useCanvasSaveShape = () =>
-  useCanvasStore((state) => state.saveShape);
-export const useCanvasUpdateShape = () =>
-  useCanvasStore((state) => state.updateShape);
-export const useCanvasToggleShapeVisibility = () =>
-  useCanvasStore((state) => state.toggleShapeVisibility);
-export const useCanvasDeleteShape = () =>
-  useCanvasStore((state) => state.deleteShape);
 export const useCanvasUpdateViewport = () =>
   useCanvasStore((state) => state.updateViewport);
 export const useCanvasSetViewport = () =>
   useCanvasStore((state) => state.setViewport);
 export const useCanvasLoadViewportFromStorage = () =>
   useCanvasStore((state) => state.loadViewportFromStorage);
+export const useCanvasLoadPageFromStorage = () =>
+  useCanvasStore((state) => state.loadPageFromStorage);
+export const useCanvasSavePageToStorage = () =>
+  useCanvasStore((state) => state.savePageToStorage);
 export const useCanvasAddCollaborator = () =>
   useCanvasStore((state) => state.addCollaborator);
 export const useCanvasRemoveCollaborator = () =>
@@ -556,6 +512,10 @@ export const useCanvasRemoveSelectedShapeId = () =>
   useCanvasStore((state) => state.removeSelectedShapeId);
 export const useCanvasClearSelectedShapeIds = () =>
   useCanvasStore((state) => state.clearSelectedShapeIds);
+
+// Page action selectors
+export const useCanvasSetCurrentPageId = () =>
+  useCanvasStore((state) => state.setCurrentPageId);
 export const useCanvasStartDrag = () =>
   useCanvasStore((state) => state.startDrag);
 export const useCanvasUpdateDrag = () =>
@@ -569,17 +529,23 @@ export const useCanvasClearError = () =>
   useCanvasStore((state) => state.clearError);
 export const useCanvasCleanup = () => useCanvasStore((state) => state.cleanup);
 export const useCanvasReset = () => useCanvasStore((state) => state.reset);
+export const useCanvasSetPages = () =>
+  useCanvasStore((state) => state.setPages);
+export const useCanvasSetNodes = () =>
+  useCanvasStore((state) => state.setNodes);
+export const useCanvasSetSubscriptions = () =>
+  useCanvasStore((state) => state.setSubscriptions);
 
 // Combined selectors for common use cases - memoized to prevent infinite re-renders
 export const useCanvasData = () => {
   const canvasDocument = useCanvasStore((state) => state.canvasDocument);
-  const shapes = useCanvasStore((state) => state.shapes);
+  const nodes = useCanvasStore((state) => state.nodes);
   const isLoading = useCanvasStore((state) => state.isLoading);
   const error = useCanvasStore((state) => state.error);
 
   return {
     canvasDocument,
-    shapes,
+    nodes,
     isLoading,
     error,
   };

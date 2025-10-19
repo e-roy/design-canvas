@@ -1,99 +1,33 @@
 rules_version = '2';
-
 service cloud.firestore {
-  match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
+  match /databases/{db}/documents {
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-
-    // Helper function to get user ID
+    
     function getUserId() {
       return request.auth.uid;
     }
-
-    // Helper function to validate shape data for creation
-    function isValidShapeForCreate() {
-      let data = request.resource.data;
-      return data.keys().hasAll(['canvasId', 'type', 'x', 'y', 'zIndex', 'version']) &&
-             data.canvasId is string &&
-             data.type in ['rectangle', 'circle', 'text', 'line', 'triangle'] &&
-             data.x is number &&
-             data.y is number &&
-             data.zIndex is number &&
-             data.version is number &&
-             data.version > 0 &&
-             data.updatedBy == getUserId() &&
-             // Allow optional properties for different shape types
-             (!data.keys().hasAny(['width']) || data.width is number) &&
-             (!data.keys().hasAny(['height']) || data.height is number) &&
-             (!data.keys().hasAny(['radius']) || data.radius is number) &&
-             (!data.keys().hasAny(['text']) || data.text is string) &&
-             (!data.keys().hasAny(['fontSize']) || data.fontSize is number) &&
-             (!data.keys().hasAny(['startX']) || data.startX is number) &&
-             (!data.keys().hasAny(['startY']) || data.startY is number) &&
-             (!data.keys().hasAny(['endX']) || data.endX is number) &&
-             (!data.keys().hasAny(['endY']) || data.endY is number) &&
-             (!data.keys().hasAny(['fill']) || data.fill is string) &&
-             (!data.keys().hasAny(['stroke']) || data.stroke is string) &&
-             (!data.keys().hasAny(['strokeWidth']) || data.strokeWidth is number) &&
-             (!data.keys().hasAny(['rotation']) || data.rotation is number) &&
-             (!data.keys().hasAny(['opacity']) || data.opacity is number) &&
-             (!data.keys().hasAny(['visible']) || data.visible is bool);
-    }
-
-    // Helper function to validate shape data for updates
-    function isValidShapeForUpdate() {
-      let data = request.resource.data;
-      return data.updatedBy == getUserId() &&
-             (!data.keys().hasAny(['canvasId']) || data.canvasId is string) &&
-             (!data.keys().hasAny(['type']) || data.type in ['rectangle', 'circle', 'text', 'line', 'triangle']) &&
-             (!data.keys().hasAny(['x']) || data.x is number) &&
-             (!data.keys().hasAny(['y']) || data.y is number) &&
-             (!data.keys().hasAny(['zIndex']) || data.zIndex is number) &&
-             (!data.keys().hasAny(['version']) || data.version is number) &&
-             // Allow optional properties for different shape types
-             (!data.keys().hasAny(['width']) || data.width is number) &&
-             (!data.keys().hasAny(['height']) || data.height is number) &&
-             (!data.keys().hasAny(['radius']) || data.radius is number) &&
-             (!data.keys().hasAny(['text']) || data.text is string) &&
-             (!data.keys().hasAny(['fontSize']) || data.fontSize is number) &&
-             (!data.keys().hasAny(['startX']) || data.startX is number) &&
-             (!data.keys().hasAny(['startY']) || data.startY is number) &&
-             (!data.keys().hasAny(['endX']) || data.endX is number) &&
-             (!data.keys().hasAny(['endY']) || data.endY is number) &&
-             (!data.keys().hasAny(['fill']) || data.fill is string) &&
-             (!data.keys().hasAny(['stroke']) || data.stroke is string) &&
-             (!data.keys().hasAny(['strokeWidth']) || data.strokeWidth is number) &&
-             (!data.keys().hasAny(['rotation']) || data.rotation is number) &&
-             (!data.keys().hasAny(['opacity']) || data.opacity is number) &&
-             (!data.keys().hasAny(['visible']) || data.visible is bool);
-    }
-
-    // Canvas documents - users can read/write canvas documents
+    
+    // Canvas documents - allow read/write for authenticated users
     match /canvas_documents/{documentId} {
-      // Allow read for authenticated users (for loading existing canvases)
-      allow read: if isAuthenticated();
-      // Allow write for authenticated users (for creating/updating canvases)
-      allow write: if isAuthenticated();
+      allow read, write: if isAuthenticated();
     }
-
-    // Canvas shapes - users can read/write shapes with validation
+    
+    // Pages - allow read/write for authenticated users
+    match /canvases/{canvasId}/pages/{pageId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Nodes - allow read/write for authenticated users
+    match /canvases/{canvasId}/nodes/{nodeId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Legacy canvas_shapes - allow read/write for authenticated users
     match /canvas_shapes/{shapeId} {
-      // Allow read for authenticated users (for loading shapes)
-      allow read: if isAuthenticated();
-      // Allow create for authenticated users with valid shape data
-      allow create: if isAuthenticated() && isValidShapeForCreate();
-      // Allow update for authenticated users with valid partial data
-      // Note: Version increment validation is handled by transactions, not rules
-      allow update: if isAuthenticated() && isValidShapeForUpdate();
-      // Allow delete for authenticated users
-      allow delete: if isAuthenticated();
-    }
-
-    // Default rule for other collections (restrictive)
-    match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAuthenticated();
     }
   }
 }

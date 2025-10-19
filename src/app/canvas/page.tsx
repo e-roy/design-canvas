@@ -16,31 +16,36 @@ import {
 import { CustomSidebarTrigger } from "@/components/canvas/sidebar-triggers";
 import { useUserStore } from "@/store/user-store";
 import { useCursorStore } from "@/store/cursor-store";
+import { usePages } from "@/hooks/usePages";
+import { useNodes } from "@/hooks/useNodes";
 import {
   useCanvasDocument,
-  useCanvasShapes,
+  useCanvasNodes,
   useCanvasError,
   useCanvasTool,
   useCanvasDimensions,
   useSelectedShapeIds,
   useCanvasSetDocumentId,
-  useCanvasSaveShape,
-  useCanvasUpdateShape,
-  useCanvasToggleShapeVisibility,
-  useCanvasDeleteShape,
   useCanvasSetCurrentTool,
   useCanvasSetCanvasDimensions,
   useCanvasSetSelectedShapeIds,
   useCanvasLoadViewportFromStorage,
+  useCanvasLoadPageFromStorage,
+  useCanvasPages,
+  useCanvasCurrentPageId,
+  useCanvasSetCurrentPageId,
+  useCanvasStore,
 } from "@/store/canvas-store";
 import {
   Canvas,
   CanvasRef,
   PropertiesPanel,
-  ObjectsList,
   Toolbar,
 } from "@/components/canvas";
-import { StoredShape, CursorPosition, Shape } from "@/types";
+import { SidebarLayout } from "@/components/canvas/sidebar-layout";
+import { ConnectionStatus } from "@/components/connection-status";
+import { CursorPosition, Shape } from "@/types";
+import { NodeDoc } from "@/types/page";
 import { cursorManager } from "@/lib/cursor-manager";
 
 // Use a fixed document ID for the main collaborative canvas
@@ -55,33 +60,51 @@ export default function CanvasPage() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingPage, setIsCreatingPage] = useState(false);
 
   // Use specific canvas store selectors to minimize re-renders
   const canvasDocument = useCanvasDocument();
-  const shapes = useCanvasShapes();
+  const nodes = useCanvasNodes();
   const canvasError = useCanvasError();
   const currentTool = useCanvasTool();
   const canvasDimensions = useCanvasDimensions();
   const selectedShapeIds = useSelectedShapeIds();
+  const pages = useCanvasPages();
+  const currentPageId = useCanvasCurrentPageId();
+  const documentId = useCanvasStore((state) => state.documentId);
+
+  // Check if the current page actually exists
+  const currentPageExists =
+    currentPageId && pages.some((page) => page.id === currentPageId);
 
   // Use individual action selectors to prevent re-renders
   const setDocumentId = useCanvasSetDocumentId();
-  const saveShape = useCanvasSaveShape();
-  const updateShape = useCanvasUpdateShape();
-  const toggleShapeVisibility = useCanvasToggleShapeVisibility();
-  const deleteShape = useCanvasDeleteShape();
   const setCurrentTool = useCanvasSetCurrentTool();
   const setCanvasDimensions = useCanvasSetCanvasDimensions();
   const setSelectedShapeIds = useCanvasSetSelectedShapeIds();
   const loadViewportFromStorage = useCanvasLoadViewportFromStorage();
+  const loadPageFromStorage = useCanvasLoadPageFromStorage();
+  const setCurrentPageId = useCanvasSetCurrentPageId();
+
+  // No more store-based node actions needed!
+
+  // Use custom hooks for pages and nodes subscriptions
+  // These hooks handle all the subscription logic internally
+  const pagesActions = usePages(documentId);
+  const nodesActions = useNodes(documentId, currentPageId);
 
   // Use refs to access current sidebar state without causing re-renders
-  const leftSidebarOpenRef = useRef(leftSidebarOpen);
-  const rightSidebarOpenRef = useRef(rightSidebarOpen);
+  // const leftSidebarOpenRef = useRef(leftSidebarOpen);
+  // const rightSidebarOpenRef = useRef(rightSidebarOpen);
 
-  // Update refs when state changes
-  leftSidebarOpenRef.current = leftSidebarOpen;
-  rightSidebarOpenRef.current = rightSidebarOpen;
+  // Ensure a page is selected when pages load (only if no page was loaded from storage)
+  useEffect(() => {
+    if (pages.length > 0 && !currentPageId) {
+      // Only select the first page if no page was loaded from storage
+      // This prevents overriding the persisted page selection
+      setCurrentPageId(pages[0].id);
+    }
+  }, [pages, currentPageId, setCurrentPageId]);
 
   // Memoized dimension calculation function
   const calculateCanvasDimensions = useCallback(() => {
@@ -110,12 +133,25 @@ export default function CanvasPage() {
 
   // Memoized mouse move handler
   const handleMouseMove = useCallback(
-    (position: CursorPosition) => {
+    (
+      position: CursorPosition,
+      viewport: { x: number; y: number; scale: number }
+    ) => {
       if (user) {
-        cursorManager.updateCursorPosition(position);
+        cursorManager.updateCursorPosition(position, viewport);
       }
     },
     [user]
+  );
+
+  // Update cursor manager with viewport changes
+  // Note: Viewport is now included with each cursor position update for synchronization
+  const handleViewportChange = useCallback(
+    (viewport: { x: number; y: number; scale: number }) => {
+      // Viewport changes are automatically sent with cursor updates
+      // No separate update needed for cursor manager
+    },
+    []
   );
 
   // Initialize canvas document ID and load persisted state
@@ -139,13 +175,19 @@ export default function CanvasPage() {
 
         // Load viewport state
         loadViewportFromStorage();
+
+        // Load current page state
+        loadPageFromStorage();
       } catch (error) {
         console.warn("Failed to load persisted state:", error);
       }
     }
 
     setIsLoading(false);
-  }, [setDocumentId, loadViewportFromStorage]);
+  }, [setDocumentId, loadViewportFromStorage, loadPageFromStorage]);
+
+  // Subscriptions are now handled by usePages and useNodes hooks above
+  // No manual subscription management needed!
 
   // Set up cursor tracking when user changes
   useEffect(() => {
@@ -159,11 +201,17 @@ export default function CanvasPage() {
       photoURL: user.photoURL,
     });
 
+    // Update current page if we have one
+    if (currentPageId) {
+      cursorManager.updateCurrentPage(currentPageId);
+    }
+
     // Subscribe to cursor updates
     const unsubscribeCursors = cursorManager.subscribeToCanvasCursors(
       (newCursors) => {
         setCursors(newCursors);
-      }
+      },
+      currentPageId
     );
 
     // Cleanup cursor tracking
@@ -171,7 +219,7 @@ export default function CanvasPage() {
       unsubscribeCursors();
       cursorManager.clearUserCursor();
     };
-  }, [user, _hasHydrated, setCursors]);
+  }, [user, _hasHydrated, setCursors, currentPageId]);
 
   // Optimized dimensions effect with debouncing
   useEffect(() => {
@@ -204,18 +252,18 @@ export default function CanvasPage() {
   // Memoized event handlers for better performance
   const handleShapeDelete = useCallback(
     (shapeId: string) => {
-      if (canvasDocument) {
-        deleteShape(shapeId);
+      if (canvasDocument && user) {
+        nodesActions.deleteNode(shapeId);
       }
     },
-    [canvasDocument, deleteShape]
+    [canvasDocument, nodesActions, user]
   );
 
   const handleShapeUpdate = useCallback(
     (shapeId: string, updates: Partial<Shape>) => {
-      if (canvasDocument) {
+      if (canvasDocument && user) {
         // Filter out undefined values for Firestore
-        const updateData: Partial<StoredShape> = {};
+        const updateData: Partial<NodeDoc> = {};
 
         if (updates.x !== undefined) updateData.x = updates.x;
         if (updates.y !== undefined) updateData.y = updates.y;
@@ -240,13 +288,15 @@ export default function CanvasPage() {
         // Only update if there are actual changes
         if (Object.keys(updateData).length > 0) {
           // Fire and forget - don't await to avoid blocking the UI
-          updateShape(shapeId, updateData).catch((error) => {
-            console.error("Error updating shape:", error);
-          });
+          nodesActions
+            .updateNode(shapeId, updateData, user.uid)
+            .catch((error: Error) => {
+              console.error("Error updating shape:", error);
+            });
         }
       }
     },
-    [canvasDocument, updateShape]
+    [canvasDocument, nodesActions, user]
   );
 
   const handleToolChange = useCallback(
@@ -275,13 +325,22 @@ export default function CanvasPage() {
 
   const handleShapeVisibilityToggle = useCallback(
     async (shapeId: string) => {
+      if (!user) return;
       try {
-        await toggleShapeVisibility(shapeId);
+        const node = nodes.find((n) => n.id === shapeId);
+        if (node) {
+          const newVisibility = !node.isVisible;
+          await nodesActions.updateNode(
+            shapeId,
+            { isVisible: newVisibility },
+            user.uid
+          );
+        }
       } catch (error) {
         console.error("Error toggling shape visibility:", error);
       }
     },
-    [toggleShapeVisibility]
+    [nodesActions, nodes, user]
   );
 
   // Memoized sidebar toggle handlers with persistence
@@ -327,75 +386,216 @@ export default function CanvasPage() {
     });
   }, []);
 
-  // Memoized canvas shapes conversion
-  const canvasShapes: Shape[] = useMemo(
-    () =>
-      shapes.map((storedShape) => ({
-        id: storedShape.id,
-        canvasId: storedShape.canvasId,
-        type: storedShape.type,
-        x: storedShape.x,
-        y: storedShape.y,
-        width: storedShape.width,
-        height: storedShape.height,
-        radius: storedShape.radius,
-        text: storedShape.text,
-        fontSize: storedShape.fontSize,
-        startX: storedShape.startX,
-        startY: storedShape.startY,
-        endX: storedShape.endX,
-        endY: storedShape.endY,
-        fill: storedShape.fill,
-        stroke: storedShape.stroke,
-        strokeWidth: storedShape.strokeWidth,
-        rotation: storedShape.rotation,
-        visible: storedShape.visible,
-        zIndex: storedShape.zIndex,
-      })),
-    [shapes]
+  // Page management handlers
+  const handlePageSelect = useCallback(
+    (pageId: string) => {
+      setCurrentPageId(pageId);
+    },
+    [setCurrentPageId]
   );
+
+  const handleCreatePage = useCallback(
+    async (name: string) => {
+      if (isCreatingPage || !user) return; // Prevent multiple clicks
+
+      try {
+        setIsCreatingPage(true);
+        const newPageId = await pagesActions.createPage(name, user.uid);
+        // Automatically select the newly created page
+        if (newPageId) {
+          setCurrentPageId(newPageId);
+        }
+      } catch (error) {
+        console.error("Error creating page:", error);
+      } finally {
+        setIsCreatingPage(false);
+      }
+    },
+    [pagesActions, setCurrentPageId, isCreatingPage, user]
+  );
+
+  const handleRenamePage = useCallback(
+    async (pageId: string, name: string) => {
+      if (!user) return;
+      try {
+        await pagesActions.renamePage(pageId, name, user.uid);
+      } catch (error) {
+        console.error("Error renaming page:", error);
+      }
+    },
+    [pagesActions, user]
+  );
+
+  const handleRenameNode = useCallback(
+    async (nodeId: string, name: string) => {
+      if (!user) return;
+      try {
+        await nodesActions.updateNode(nodeId, { name }, user.uid);
+      } catch (error) {
+        console.error("Error renaming node:", error);
+      }
+    },
+    [nodesActions, user]
+  );
+
+  const handleDeletePage = useCallback(
+    async (pageId: string) => {
+      if (!user) return;
+      try {
+        await pagesActions.deletePage(pageId, user.uid);
+      } catch (error) {
+        console.error("Error deleting page:", error);
+      }
+    },
+    [pagesActions, user]
+  );
+
+  const handleDuplicatePage = useCallback(
+    async (pageId: string) => {
+      if (!user) return;
+
+      try {
+        const page = pages.find((p) => p.id === pageId);
+        if (!page) return;
+
+        // Create the new page
+        const newPageId = await pagesActions.createPage(
+          `${page.name} Copy`,
+          user.uid
+        );
+
+        // Get all nodes from the original page
+        const originalNodes = nodes.filter((node) => node.pageId === pageId);
+
+        // Create copies of all nodes for the new page
+        for (const originalNode of originalNodes) {
+          const nodeData = {
+            parentId: originalNode.parentId,
+            type: originalNode.type,
+            name: originalNode.name,
+            x: originalNode.x,
+            y: originalNode.y,
+            width: originalNode.width,
+            height: originalNode.height,
+            radius: originalNode.radius,
+            rotation: originalNode.rotation,
+            opacity: originalNode.opacity,
+            text: originalNode.text,
+            fontSize: originalNode.fontSize,
+            startX: originalNode.startX,
+            startY: originalNode.startY,
+            endX: originalNode.endX,
+            endY: originalNode.endY,
+            fill: originalNode.fill,
+            stroke: originalNode.stroke,
+            strokeWidth: originalNode.strokeWidth,
+            isVisible: originalNode.isVisible,
+            isLocked: originalNode.isLocked,
+            zIndex: originalNode.zIndex,
+          };
+
+          await nodesActions.createNode(newPageId, nodeData, user.uid);
+        }
+      } catch (error) {
+        console.error("Error duplicating page:", error);
+      }
+    },
+    [pagesActions, nodesActions, pages, nodes, user]
+  );
+
+  // Memoized canvas nodes conversion
+  const canvasNodes: Shape[] = useMemo(
+    () =>
+      nodes.map((node) => ({
+        id: node.id,
+        canvasId: "default", // Use default for now
+        type: node.type,
+        x: node.x || 0,
+        y: node.y || 0,
+        width: node.width || 0,
+        height: node.height || 0,
+        radius: node.radius || 0,
+        text: node.text || "",
+        fontSize: node.fontSize || 16,
+        startX: node.startX || 0,
+        startY: node.startY || 0,
+        endX: node.endX || 0,
+        endY: node.endY || 0,
+        fill: node.fill || "#000000",
+        stroke: node.stroke || "#000000",
+        strokeWidth: node.strokeWidth || 1,
+        rotation: node.rotation || 0,
+        visible: node.isVisible !== false,
+        zIndex: node.zIndex || 0,
+        createdBy: node.createdBy,
+        createdAt: node.createdAt,
+        updatedAt: node.updatedAt,
+        updatedBy: node.updatedBy,
+        version: node.version,
+      })),
+    [nodes]
+  );
+
+  const getShapeDisplayName = (shape: Shape): string => {
+    switch (shape.type) {
+      case "text":
+        return shape.text || "Text";
+      case "rectangle":
+        return "Rectangle";
+      case "circle":
+        return "Circle";
+      case "line":
+        return "Line";
+      case "triangle":
+        return "Triangle";
+      case "frame":
+        return "Frame";
+      case "group":
+        return "Group";
+      default:
+        return (
+          (shape.type as string).charAt(0).toUpperCase() +
+          (shape.type as string).slice(1)
+        );
+    }
+  };
 
   const handleShapeCreate = useCallback(
     async (shape: Shape) => {
-      if (!canvasDocument || !user) {
+      if (!canvasDocument || !user || !currentPageId) {
         return;
       }
 
       try {
-        // Filter out undefined values for Firestore
-        const shapeData: Partial<
-          Omit<StoredShape, "id" | "createdAt" | "updatedAt" | "updatedBy">
-        > & { createdBy: string } = {
+        const nodeData = {
+          parentId: null,
+          type: shape.type,
+          name: getShapeDisplayName(shape),
           x: shape.x,
           y: shape.y,
-          type: shape.type,
-          zIndex: shape.zIndex || Date.now(),
-          createdBy: user.uid,
+          width: shape.width,
+          height: shape.height,
+          radius: shape.radius,
+          rotation: shape.rotation,
+          opacity: 1,
+          text: shape.text,
+          fontSize: shape.fontSize,
+          startX: shape.startX,
+          startY: shape.startY,
+          endX: shape.endX,
+          endY: shape.endY,
+          fill: shape.fill,
+          stroke: shape.stroke,
+          strokeWidth: shape.strokeWidth,
+          isVisible: shape.visible ?? true,
+          isLocked: false,
+          zIndex: shape.zIndex,
         };
 
-        // Only add defined properties
-        if (shape.width !== undefined) shapeData.width = shape.width;
-        if (shape.height !== undefined) shapeData.height = shape.height;
-        if (shape.radius !== undefined) shapeData.radius = shape.radius;
-        if (shape.text !== undefined) shapeData.text = shape.text;
-        if (shape.fontSize !== undefined) shapeData.fontSize = shape.fontSize;
-        if (shape.fill !== undefined) shapeData.fill = shape.fill;
-        if (shape.stroke !== undefined) shapeData.stroke = shape.stroke;
-        if (shape.strokeWidth !== undefined)
-          shapeData.strokeWidth = shape.strokeWidth;
-        if (shape.rotation !== undefined) shapeData.rotation = shape.rotation;
-
-        // Add line-specific properties
-        if (shape.startX !== undefined) shapeData.startX = shape.startX;
-        if (shape.startY !== undefined) shapeData.startY = shape.startY;
-        if (shape.endX !== undefined) shapeData.endX = shape.endX;
-        if (shape.endY !== undefined) shapeData.endY = shape.endY;
-
-        const shapeId = await saveShape(
-          shapeData as Omit<
-            StoredShape,
-            "id" | "createdAt" | "updatedAt" | "updatedBy"
-          >
+        const shapeId = await nodesActions.createNode(
+          currentPageId,
+          nodeData,
+          user.uid
         );
 
         // Select the newly created shape
@@ -404,16 +604,16 @@ export default function CanvasPage() {
         console.error("Error saving shape:", error);
       }
     },
-    [canvasDocument, user, saveShape, setSelectedShapeIds]
+    [canvasDocument, user, nodesActions, setSelectedShapeIds, currentPageId]
   );
 
   // Memoized selected shape calculation
   const selectedShape = useMemo(
     () =>
       selectedShapeIds.length === 1
-        ? shapes.find((shape) => shape.id === selectedShapeIds[0]) || null
+        ? nodes.find((node) => node.id === selectedShapeIds[0]) || null
         : null,
-    [selectedShapeIds, shapes]
+    [selectedShapeIds, nodes]
   );
 
   // Show loading state while initializing
@@ -453,16 +653,24 @@ export default function CanvasPage() {
         <Sidebar side="left" className="border-r">
           <SidebarHeader className="border-b">
             <div className="flex items-center justify-between p-2">
-              <h1 className="text-lg font-semibold">Design Canvas</h1>
+              <h1 className="text-lg font-semibold">CollabCanvas</h1>
             </div>
           </SidebarHeader>
 
           <SidebarContent>
-            <ObjectsList
-              shapes={shapes}
+            <SidebarLayout
+              pages={pages}
+              currentPageId={currentPageId}
+              onPageSelect={handlePageSelect}
+              onCreatePage={() => handleCreatePage("New Page")}
+              onRenamePage={handleRenamePage}
+              onDuplicatePage={handleDuplicatePage}
+              onDeletePage={handleDeletePage}
+              nodes={nodes}
               selectedShapeIds={selectedShapeIds}
               onShapeSelect={handleShapeSelect}
               onShapeVisibilityToggle={handleShapeVisibilityToggle}
+              onRenameNode={handleRenameNode}
             />
           </SidebarContent>
 
@@ -475,55 +683,124 @@ export default function CanvasPage() {
 
         {/* Main Content Area */}
         <SidebarInset>
-          <div className="flex h-screen relative">
-            {/* Canvas Area */}
-            <div className="flex-1 relative bg-white dark:bg-gray-800">
-              <Canvas
-                ref={canvasRef}
-                width={canvasDimensions.width}
-                height={canvasDimensions.height}
-                shapes={canvasShapes}
-                onShapeCreate={handleShapeCreate}
-                onShapeUpdate={handleShapeUpdate}
-                onShapeDelete={handleShapeDelete}
-                onToolChange={handleToolChange}
-                onMouseMove={handleMouseMove}
-                currentUserId={user?.uid}
-                className="w-full h-full"
-              />
+          {/* Connection Status Indicator */}
+          <ConnectionStatus />
 
-              {/* Toolbar */}
-              <Toolbar
-                currentTool={currentTool}
-                onToolChange={handleToolChange}
-              />
-            </div>
+          {currentPageExists ? (
+            <div className="flex h-screen relative">
+              {/* Canvas Area */}
+              <div className="flex-1 relative bg-white dark:bg-gray-800">
+                <Canvas
+                  ref={canvasRef}
+                  width={canvasDimensions.width}
+                  height={canvasDimensions.height}
+                  shapes={canvasNodes}
+                  canvasId={MAIN_CANVAS_ID}
+                  currentPageId={currentPageId}
+                  onShapeCreate={handleShapeCreate}
+                  onShapeUpdate={handleShapeUpdate}
+                  onShapeDelete={handleShapeDelete}
+                  onToolChange={handleToolChange}
+                  onMouseMove={handleMouseMove}
+                  onViewportChange={handleViewportChange}
+                  currentUserId={user?.uid}
+                  className="w-full h-full"
+                />
 
-            {/* Right Sidebar */}
-            <SidebarProvider
-              open={rightSidebarOpen}
-              onOpenChange={setRightSidebarOpen}
-            >
-              <Sidebar side="right" className="border-l">
-                <SidebarHeader className="border-b">
-                  <div className="flex items-center justify-between p-2">
-                    <CompactPresence
-                      projectId={MAIN_CANVAS_ID}
-                      showCount={true}
+                {/* Toolbar */}
+                <Toolbar
+                  currentTool={currentTool}
+                  onToolChange={handleToolChange}
+                />
+              </div>
+
+              {/* Right Sidebar */}
+              <SidebarProvider
+                open={rightSidebarOpen}
+                onOpenChange={setRightSidebarOpen}
+              >
+                <Sidebar side="right" className="border-l">
+                  <SidebarHeader className="border-b">
+                    <div className="flex items-center justify-between p-2">
+                      <CompactPresence
+                        projectId={MAIN_CANVAS_ID}
+                        showCount={true}
+                      />
+                    </div>
+                  </SidebarHeader>
+
+                  <SidebarContent>
+                    <PropertiesPanel
+                      selectedShape={selectedShape}
+                      onShapeUpdate={handleShapeUpdate}
+                      onShapeDelete={handleShapeDelete}
                     />
-                  </div>
-                </SidebarHeader>
-
-                <SidebarContent>
-                  <PropertiesPanel
-                    selectedShape={selectedShape}
-                    onShapeUpdate={handleShapeUpdate}
-                    onShapeDelete={handleShapeDelete}
-                  />
-                </SidebarContent>
-              </Sidebar>
-            </SidebarProvider>
-          </div>
+                  </SidebarContent>
+                </Sidebar>
+              </SidebarProvider>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-800">
+              <div className="text-center text-gray-500 max-w-md">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                  <svg
+                    className="w-10 h-10 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  {currentPageId ? "Page Not Found" : "No Page Selected"}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                  {currentPageId
+                    ? "The selected page may have been deleted by another user. Please select another page or create a new one."
+                    : "Select a page from the sidebar to start designing, or create a new page to get started."}
+                </p>
+                <Button
+                  onClick={() => handleCreatePage("New Page")}
+                  disabled={isCreatingPage}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCreatingPage ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Creating...
+                    </>
+                  ) : (
+                    "Create New Page"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </SidebarInset>
       </SidebarProvider>
 

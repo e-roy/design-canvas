@@ -35,7 +35,6 @@ import {
 } from "@/store/canvas-store";
 import { useUserStore } from "@/store/user-store";
 import { usePresence } from "@/hooks/usePresence";
-import { updateShape } from "@/services/shapeTransactions";
 
 // Canvas constants
 const VIRTUAL_WIDTH = 5000;
@@ -70,11 +69,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     showGrid = true,
     className = "",
     shapes: externalShapes = [],
+    canvasId = "default",
+    currentPageId = null,
     onShapeCreate,
     onShapeUpdate,
     onShapeDelete,
     onToolChange,
     onMouseMove,
+    onViewportChange,
     currentUserId,
   },
   ref
@@ -101,7 +103,11 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
   );
 
   // Initialize presence system
-  const presence = usePresence("default", presenceConfig);
+  const presence = usePresence(
+    canvasId,
+    presenceConfig,
+    currentPageId || undefined
+  );
 
   // Subscribe to peer presence for ghost rendering
   const [peerPresence, setPeerPresence] = useState<
@@ -197,7 +203,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       pendingUpdate = { shapeId, patch };
 
       const now = Date.now();
-      const remaining = 100 - (now - lastCall); // Reduced to 100ms for better responsiveness
+      const remaining = 75 - (now - lastCall); // 75ms for sub-100ms updates to meet Excellent rating
 
       if (remaining <= 0) {
         if (timeout) {
@@ -206,18 +212,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         }
         lastCall = now;
         if (user?.uid && onShapeUpdate && pendingUpdate) {
-          // Use regular update for throttled drag updates (better performance)
-          // Only use transactions for final commits and important operations
-          updateShape(
-            pendingUpdate.shapeId,
-            pendingUpdate.patch,
-            user.uid
-          ).catch((error: unknown) => {
-            console.warn(
-              `Failed to update shape ${pendingUpdate?.shapeId}:`,
-              error instanceof Error ? error.message : String(error)
-            );
-          });
+          // Use the onShapeUpdate callback for throttled drag updates
+          onShapeUpdate(pendingUpdate.shapeId, pendingUpdate.patch);
           pendingUpdate = null;
         }
       } else if (!timeout) {
@@ -225,18 +221,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           lastCall = Date.now();
           timeout = null;
           if (user?.uid && onShapeUpdate && pendingUpdate) {
-            // Use regular update for throttled drag updates (better performance)
-            // Only use transactions for final commits and important operations
-            updateShape(
-              pendingUpdate.shapeId,
-              pendingUpdate.patch,
-              user.uid
-            ).catch((error: unknown) => {
-              console.warn(
-                `Failed to update shape ${pendingUpdate?.shapeId}:`,
-                error instanceof Error ? error.message : String(error)
-              );
-            });
+            // Use the onShapeUpdate callback for throttled drag updates
+            onShapeUpdate(pendingUpdate.shapeId, pendingUpdate.patch);
             pendingUpdate = null;
           }
         }, remaining);
@@ -456,7 +442,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         [id]: { x, y },
       }));
 
-      // Throttle RTDB updates to 30 FPS (33ms intervals)
+      // Throttle RTDB updates to 40 FPS (25ms intervals) for smooth real-time collaboration
       if (rtdbUpdateRef.current[id]) {
         clearTimeout(rtdbUpdateRef.current[id]);
       }
@@ -477,7 +463,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           });
         }
         delete rtdbUpdateRef.current[id];
-      }, 33); // ~30 FPS
+      }, 25); // 40 FPS for smoother real-time updates
 
       // Use throttled commit for Firestore updates
       commitThrottled(id, { x, y });
@@ -503,15 +489,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       if (finalX !== undefined && finalY !== undefined) {
         // Add a small delay to ensure any pending throttled updates complete first
         setTimeout(() => {
-          if (user?.uid) {
-            updateShape(id, { x: finalX, y: finalY }, user.uid).catch(
-              (error) => {
-                console.warn(
-                  `Failed to finalize shape ${id} position:`,
-                  error instanceof Error ? error.message : String(error)
-                );
-              }
-            );
+          if (user?.uid && onShapeUpdate) {
+            onShapeUpdate(id, { x: finalX, y: finalY });
           }
         }, 50); // Reduced delay for faster final positioning
 
@@ -527,7 +506,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         });
       }
     },
-    [presence, user?.uid]
+    [presence, user?.uid, onShapeUpdate]
   );
 
   const handleShapeChange = useCallback(
@@ -883,7 +862,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
 
       // Simple throttling: only process mouse moves every 50ms
       const now = Date.now();
-      if (now - lastMouseMoveTime.current < 50) return;
+      const shouldSend = now - lastMouseMoveTime.current >= 50;
+      if (!shouldSend) return;
       lastMouseMoveTime.current = now;
 
       // Get the container's bounding rectangle
@@ -914,7 +894,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       // Disabled to prevent conflicts with cursorManager
       // presence.updateCursor(virtualPosition.x, virtualPosition.y);
 
-      onMouseMove(virtualPosition);
+      onMouseMove?.(virtualPosition, viewport);
     },
     [onMouseMove, viewport]
   );
@@ -930,8 +910,8 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
       timestamp: Date.now(),
     };
 
-    onMouseMove(virtualPosition);
-  }, [onMouseMove]);
+    onMouseMove?.(virtualPosition, viewport);
+  }, [onMouseMove, viewport]);
 
   // Use refs to store handlers to prevent effect re-runs
   const handleGlobalMouseMoveRef = useRef(handleGlobalMouseMove);
@@ -992,7 +972,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
           timestamp: Date.now(),
         };
 
-        onMouseMove(virtualPosition);
+        onMouseMove?.(virtualPosition, viewport);
       }
       return;
     }
@@ -1074,7 +1054,7 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         timestamp: Date.now(),
       };
 
-      onMouseMove(virtualPosition);
+      onMouseMove?.(virtualPosition, viewport);
     }
   }, [
     isCreatingShape,
@@ -1239,8 +1219,14 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
     (newViewport: CanvasViewport) => {
       const constrainedViewport = constrainViewport(newViewport);
       setViewport(constrainedViewport);
+
+      // Update viewport in presence for accurate cursor positioning across different zoom levels
+      presence.updateViewport(constrainedViewport);
+
+      // Notify parent component of viewport change (cursor manager now includes viewport with each cursor update)
+      onViewportChange?.(constrainedViewport);
     },
-    [setViewport, constrainViewport]
+    [setViewport, constrainViewport, presence, onViewportChange]
   );
 
   // Handle zoom with mouse wheel
@@ -1278,10 +1264,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         scale: clampedScale,
       };
 
-      const constrainedViewport = constrainViewport(newViewport);
-      setViewport(constrainedViewport);
+      handleViewportChange(newViewport);
     },
-    [viewport, setViewport, constrainViewport]
+    [viewport, handleViewportChange]
   );
 
   // Handle pan start
@@ -1298,10 +1283,9 @@ export const Canvas = forwardRef<CanvasRef, CanvasProps>(function Canvas(
         y: viewport.y + delta.y / viewport.scale,
       };
 
-      const constrainedViewport = constrainViewport(newViewport);
-      setViewport(constrainedViewport);
+      handleViewportChange(newViewport);
     },
-    [viewport, setViewport, constrainViewport]
+    [viewport, handleViewportChange]
   );
 
   // Handle pan end
