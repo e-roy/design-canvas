@@ -46,6 +46,7 @@ export const AiChatPanel = memo(function AiChatPanel({
     clearChat,
     isInitializing,
     executedCommands: _executedCommands,
+    queueLength,
   } = useAiChat({ commandContext, nodes });
 
   // Auto-scroll to bottom when new messages arrive
@@ -183,42 +184,46 @@ export const AiChatPanel = memo(function AiChatPanel({
               </div>
             ) : (
               <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 ${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {message.role === "assistant" && (
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                        <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      </div>
-                    )}
+                {messages
+                  .filter((message) => message.content.trim().length > 0)
+                  .map((message) => (
                     <div
-                      className={`flex flex-col max-w-[80%] ${
-                        message.role === "user" ? "items-end" : "items-start"
+                      key={message.id}
+                      className={`flex gap-3 ${
+                        message.role === "user"
+                          ? "justify-end"
+                          : "justify-start"
                       }`}
                     >
+                      {message.role === "assistant" && (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                          <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                      )}
                       <div
-                        className={`rounded-lg px-3 py-2 text-sm ${
-                          message.role === "user"
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        className={`flex flex-col max-w-[80%] ${
+                          message.role === "user" ? "items-end" : "items-start"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">
-                          {message.content}
-                        </p>
+                        <div
+                          className={`rounded-lg px-3 py-2 text-sm ${
+                            message.role === "user"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap break-words">
+                            {message.content}
+                          </p>
+                        </div>
                       </div>
+                      {message.role === "user" && (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </div>
+                      )}
                     </div>
-                    {message.role === "user" && (
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                        <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
                 {isLoading && (
                   <div className="flex gap-3 justify-start">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
@@ -227,7 +232,9 @@ export const AiChatPanel = memo(function AiChatPanel({
                     <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Thinking...
+                        {queueLength > 0
+                          ? `Processing... (${queueLength} queued)`
+                          : "Thinking..."}
                       </span>
                     </div>
                   </div>

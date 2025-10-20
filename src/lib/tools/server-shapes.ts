@@ -62,7 +62,9 @@ export type CreateNodeInput = Pick<
   | "endY"
 >;
 
-export async function createNodeInFirestore(params: CreateNodeInput) {
+export async function createNodeInFirestore(
+  params: CreateNodeInput & { parentId?: string | null }
+) {
   const context = getExecutionContext();
   const db = getAdminFirestore();
 
@@ -73,7 +75,7 @@ export async function createNodeInFirestore(params: CreateNodeInput) {
   // Note: createdAt and updatedAt use FieldValue.serverTimestamp() which is converted by Firestore
   const nodeDoc = {
     type: params.type,
-    parentId: null, // Root-level shapes have null parentId
+    parentId: params.parentId ?? null, // Use provided parentId or null for root-level
     pageId: context.currentPageId,
     orderKey,
     isVisible: true,

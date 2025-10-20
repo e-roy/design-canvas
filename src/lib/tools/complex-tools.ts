@@ -10,7 +10,7 @@ import { z } from "zod";
 export const complexTools = {
   createButton: tool({
     description:
-      "Create a button component with rectangle background and text label",
+      "Create a button component with frame container, rectangle background and text label",
     inputSchema: z.object({
       x: z.number().describe("X coordinate of button"),
       y: z.number().describe("Y coordinate of button"),
@@ -41,35 +41,48 @@ export const complexTools = {
         text,
         width = 120,
         height = 40,
-        fill = "#3b82f6",
+        fill = "#2563eb",
         textColor = "#ffffff",
       } = args;
 
       const { createNodeInFirestore } = await import("./server-shapes");
 
-      // Create button background (rectangle)
-      await createNodeInFirestore({
-        type: "rectangle",
+      // Create button frame container
+      const frameResult = await createNodeInFirestore({
+        type: "frame",
         x,
         y,
         width,
         height,
+      });
+
+      const frameId = frameResult.nodeId;
+
+      // Create button background (rectangle)
+      await createNodeInFirestore({
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width,
+        height,
         fill,
-        stroke: "#000000",
-        strokeWidth: 2,
+        stroke: "#1e40af",
+        strokeWidth: 1,
+        parentId: frameId,
       });
 
       // Create button text (centered)
       await createNodeInFirestore({
         type: "text",
-        x: x + width / 2,
-        y: y + height / 2,
+        x: width / 2,
+        y: height / 2,
         text,
         fontSize: 16,
         fill: textColor,
+        parentId: frameId,
       });
 
-      return `✓ Created button "${text}" at position (${x}, ${y}) with size ${width}x${height}`;
+      return `✓ Created button "${text}" at position (${x}, ${y}) with size ${width}x${height} (all elements nested in frame)`;
     },
   }),
 
@@ -97,7 +110,7 @@ export const complexTools = {
       const { createNodeInFirestore } = await import("./server-shapes");
 
       // Create card frame/container
-      await createNodeInFirestore({
+      const frameResult = await createNodeInFirestore({
         type: "frame",
         x,
         y,
@@ -105,27 +118,31 @@ export const complexTools = {
         height,
       });
 
+      const frameId = frameResult.nodeId;
+
       // Create title text
       await createNodeInFirestore({
         type: "text",
-        x: x + 20,
-        y: y + 30,
+        x: 20,
+        y: 30,
         text: title,
         fontSize: 24,
         fill: "#000000",
+        parentId: frameId,
       });
 
       // Create description text
       await createNodeInFirestore({
         type: "text",
-        x: x + 20,
-        y: y + 70,
+        x: 20,
+        y: 70,
         text: description,
         fontSize: 14,
-        fill: "#666666",
+        fill: "#6b7280",
+        parentId: frameId,
       });
 
-      return `✓ Created card "${title}" at position (${x}, ${y}) with title and description`;
+      return `✓ Created card "${title}" at position (${x}, ${y}) with title and description (all elements nested in frame)`;
     },
   }),
 
@@ -141,95 +158,158 @@ export const complexTools = {
 
       const { createNodeInFirestore } = await import("./server-shapes");
 
-      const formWidth = 320;
-      const fieldHeight = 40;
+      const formWidth = 400;
+      const fieldHeight = 48;
+      const padding = 40;
+      const labelSpacing = 8;
+      const fieldGap = 28;
+      const formHeight = 420;
 
-      // Create form container frame
-      await createNodeInFirestore({
+      // Create form container frame with shadow effect
+      const frameResult = await createNodeInFirestore({
         type: "frame",
         x,
         y,
         width: formWidth,
-        height: 240,
+        height: formHeight,
       });
 
-      // Title
-      await createNodeInFirestore({
-        type: "text",
-        x: x + 20,
-        y: y + 30,
-        text: "Login",
-        fontSize: 24,
-        fill: "#000000",
-      });
+      const frameId = frameResult.nodeId;
 
-      // Username label
-      await createNodeInFirestore({
-        type: "text",
-        x: x + 20,
-        y: y + 70,
-        text: "Username",
-        fontSize: 14,
-        fill: "#333333",
-      });
-
-      // Username input field (rectangle)
+      // Background card
       await createNodeInFirestore({
         type: "rectangle",
-        x: x + 20,
-        y: y + 90,
-        width: formWidth - 40,
-        height: fieldHeight,
+        x: 0,
+        y: 0,
+        width: formWidth,
+        height: formHeight,
         fill: "#ffffff",
-        stroke: "#cccccc",
+        stroke: "#e5e7eb",
+        strokeWidth: 1,
+        parentId: frameId,
+      });
+
+      // Title - bold and prominent
+      await createNodeInFirestore({
+        type: "text",
+        x: padding,
+        y: padding,
+        text: "Login",
+        fontSize: 36,
+        fill: "#111827",
+        parentId: frameId,
+      });
+
+      // Subtitle with more space from title
+      await createNodeInFirestore({
+        type: "text",
+        x: padding,
+        y: padding + 50,
+        text: "Welcome back! Please login to your account.",
+        fontSize: 13,
+        fill: "#6b7280",
+        parentId: frameId,
+      });
+
+      // Username label - more space from subtitle
+      const usernameFieldY = padding + 110;
+      await createNodeInFirestore({
+        type: "text",
+        x: padding,
+        y: usernameFieldY,
+        text: "Username",
+        fontSize: 14,
+        fill: "#374151",
+        parentId: frameId,
+      });
+
+      // Username input field with better visibility
+      await createNodeInFirestore({
+        type: "rectangle",
+        x: padding,
+        y: usernameFieldY + labelSpacing + 6,
+        width: formWidth - padding * 2,
+        height: fieldHeight,
+        fill: "#f9fafb",
+        stroke: "#9ca3af",
         strokeWidth: 2,
+        parentId: frameId,
+      });
+
+      // Username placeholder text
+      await createNodeInFirestore({
+        type: "text",
+        x: padding + 14,
+        y: usernameFieldY + labelSpacing + 26,
+        text: "Enter your username",
+        fontSize: 14,
+        fill: "#9ca3af",
+        parentId: frameId,
       });
 
       // Password label
+      const passwordFieldY =
+        usernameFieldY + labelSpacing + 6 + fieldHeight + fieldGap;
       await createNodeInFirestore({
         type: "text",
-        x: x + 20,
-        y: y + 140,
+        x: padding,
+        y: passwordFieldY,
         text: "Password",
         fontSize: 14,
-        fill: "#333333",
+        fill: "#374151",
+        parentId: frameId,
       });
 
-      // Password input field (rectangle)
+      // Password input field
       await createNodeInFirestore({
         type: "rectangle",
-        x: x + 20,
-        y: y + 160,
-        width: formWidth - 40,
+        x: padding,
+        y: passwordFieldY + labelSpacing + 6,
+        width: formWidth - padding * 2,
         height: fieldHeight,
-        fill: "#ffffff",
-        stroke: "#cccccc",
+        fill: "#f9fafb",
+        stroke: "#9ca3af",
         strokeWidth: 2,
+        parentId: frameId,
       });
 
-      // Submit button background
-      await createNodeInFirestore({
-        type: "rectangle",
-        x: x + 20,
-        y: y + 215,
-        width: formWidth - 40,
-        height: fieldHeight,
-        fill: "#3b82f6",
-        stroke: "#000000",
-        strokeWidth: 2,
-      });
-
-      // Submit button text
+      // Password placeholder text
       await createNodeInFirestore({
         type: "text",
-        x: x + formWidth / 2,
-        y: y + 235,
-        text: "Login",
-        fontSize: 16,
-        fill: "#ffffff",
+        x: padding + 14,
+        y: passwordFieldY + labelSpacing + 26,
+        text: "Enter your password",
+        fontSize: 14,
+        fill: "#9ca3af",
+        parentId: frameId,
       });
 
-      return `✓ Created login form at position (${x}, ${y}) with username field, password field, and submit button (8 elements total)`;
+      // Submit button with more breathing room
+      const buttonY = passwordFieldY + labelSpacing + 6 + fieldHeight + 32;
+      await createNodeInFirestore({
+        type: "rectangle",
+        x: padding,
+        y: buttonY,
+        width: formWidth - padding * 2,
+        height: 52,
+        fill: "#2563eb",
+        stroke: "#1d4ed8",
+        strokeWidth: 0,
+        parentId: frameId,
+      });
+
+      // Submit button text (properly centered)
+      await createNodeInFirestore({
+        type: "text",
+        x: formWidth / 2,
+        y: buttonY + 28,
+        text: "Sign In",
+        fontSize: 16,
+        fill: "#ffffff",
+        parentId: frameId,
+      });
+
+      return `✓ Created modern login form at position (${x}, ${y}) with styled input fields, placeholder text, and submit button (all elements properly nested in frame)`;
     },
   }),
 
@@ -244,7 +324,7 @@ export const complexTools = {
         .describe(
           "Array of menu item labels (e.g., ['Home', 'About', 'Contact'])"
         ),
-      width: z.number().optional().describe("Navbar width (default: 800)"),
+      width: z.number().optional().describe("Navbar width (default: 1000)"),
     }),
     execute: async (args: {
       x: number;
@@ -252,43 +332,60 @@ export const complexTools = {
       menuItems: string[];
       width?: number;
     }) => {
-      const { x, y, menuItems, width = 800 } = args;
+      const { x, y, menuItems, width = 1000 } = args;
 
       const { createNodeInFirestore } = await import("./server-shapes");
 
-      const navHeight = 60;
-      const itemSpacing = width / (menuItems.length + 1);
+      const navHeight = 70;
+      const horizontalPadding = 48;
+      const itemSpacing = 60;
+      const startX = horizontalPadding;
 
-      // Create navbar background
-      await createNodeInFirestore({
-        type: "rectangle",
+      // Create navbar frame container
+      const frameResult = await createNodeInFirestore({
+        type: "frame",
         x,
         y,
         width,
         height: navHeight,
-        fill: "#1f2937",
-        stroke: "#000000",
-        strokeWidth: 2,
       });
 
-      // Create menu items
-      for (let i = 0; i < menuItems.length; i++) {
-        const itemX = x + itemSpacing * (i + 1);
-        const itemY = y + navHeight / 2;
+      const frameId = frameResult.nodeId;
 
+      // Create navbar background
+      await createNodeInFirestore({
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width,
+        height: navHeight,
+        fill: "#1e293b",
+        stroke: "#334155",
+        strokeWidth: 1,
+        parentId: frameId,
+      });
+
+      // Create menu items with better spacing
+      let currentX = startX;
+      for (let i = 0; i < menuItems.length; i++) {
         await createNodeInFirestore({
           type: "text",
-          x: itemX,
-          y: itemY,
+          x: currentX,
+          y: navHeight / 2,
           text: menuItems[i],
-          fontSize: 16,
-          fill: "#ffffff",
+          fontSize: 15,
+          fill: "#f1f5f9",
+          parentId: frameId,
         });
+
+        // Estimate text width for spacing (approximate)
+        const estimatedTextWidth = menuItems[i].length * 9;
+        currentX += estimatedTextWidth + itemSpacing;
       }
 
-      return `✓ Created navigation bar at position (${x}, ${y}) with ${
+      return `✓ Created modern navigation bar at position (${x}, ${y}) with ${
         menuItems.length
-      } menu items (${menuItems.join(", ")})`;
+      } menu items (${menuItems.join(", ")}) - all elements nested in frame`;
     },
   }),
 
@@ -315,16 +412,17 @@ export const complexTools = {
 
       const { createNodeInFirestore } = await import("./server-shapes");
 
-      const dashWidth = 1000;
-      const dashHeight = 600;
-      const headerHeight = 80;
-      const sidebarWidth = 200;
-      const cardWidth = 240;
-      const cardHeight = 160;
-      const cardSpacing = 20;
+      const dashWidth = 1100;
+      const dashHeight = 650;
+      const headerHeight = 70;
+      const sidebarWidth = 180;
+      const cardWidth = 260;
+      const cardHeight = 180;
+      const cardSpacing = 24;
+      const contentPadding = 28;
 
-      // Main container
-      await createNodeInFirestore({
+      // Main container frame
+      const frameResult = await createNodeInFirestore({
         type: "frame",
         x,
         y,
@@ -332,42 +430,88 @@ export const complexTools = {
         height: dashHeight,
       });
 
+      const frameId = frameResult.nodeId;
+
+      // Background
+      await createNodeInFirestore({
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: dashWidth,
+        height: dashHeight,
+        fill: "#f8fafc",
+        stroke: "#e2e8f0",
+        strokeWidth: 1,
+        parentId: frameId,
+      });
+
       // Header
       await createNodeInFirestore({
         type: "rectangle",
-        x,
-        y,
+        x: 0,
+        y: 0,
         width: dashWidth,
         height: headerHeight,
-        fill: "#1f2937",
-        stroke: "#000000",
-        strokeWidth: 2,
+        fill: "#0f172a",
+        stroke: "#1e293b",
+        strokeWidth: 0,
+        parentId: frameId,
       });
 
+      // Header title
       await createNodeInFirestore({
         type: "text",
-        x: x + 40,
-        y: y + 50,
+        x: 32,
+        y: headerHeight / 2,
         text: title,
-        fontSize: 28,
-        fill: "#ffffff",
+        fontSize: 24,
+        fill: "#f8fafc",
+        parentId: frameId,
       });
 
       // Sidebar
       await createNodeInFirestore({
         type: "rectangle",
-        x,
-        y: y + headerHeight,
+        x: 0,
+        y: headerHeight,
         width: sidebarWidth,
         height: dashHeight - headerHeight,
-        fill: "#374151",
-        stroke: "#000000",
-        strokeWidth: 2,
+        fill: "#334155",
+        stroke: "#475569",
+        strokeWidth: 0,
+        parentId: frameId,
+      });
+
+      // Sidebar menu items
+      const sidebarItems = ["Dashboard", "Analytics", "Reports", "Settings"];
+      for (let i = 0; i < sidebarItems.length; i++) {
+        await createNodeInFirestore({
+          type: "text",
+          x: 20,
+          y: headerHeight + 40 + i * 50,
+          text: sidebarItems[i],
+          fontSize: 14,
+          fill: "#cbd5e1",
+          parentId: frameId,
+        });
+      }
+
+      // Content area background
+      await createNodeInFirestore({
+        type: "rectangle",
+        x: sidebarWidth,
+        y: headerHeight,
+        width: dashWidth - sidebarWidth,
+        height: dashHeight - headerHeight,
+        fill: "#f1f5f9",
+        stroke: "transparent",
+        strokeWidth: 0,
+        parentId: frameId,
       });
 
       // Content area cards
-      const contentX = x + sidebarWidth + cardSpacing;
-      const contentY = y + headerHeight + cardSpacing;
+      const contentX = sidebarWidth + contentPadding;
+      const contentY = headerHeight + contentPadding;
       const cardsPerRow = 3;
 
       for (let i = 0; i < cardCount; i++) {
@@ -376,6 +520,7 @@ export const complexTools = {
         const cardX = contentX + col * (cardWidth + cardSpacing);
         const cardY = contentY + row * (cardHeight + cardSpacing);
 
+        // Card background
         await createNodeInFirestore({
           type: "rectangle",
           x: cardX,
@@ -383,22 +528,35 @@ export const complexTools = {
           width: cardWidth,
           height: cardHeight,
           fill: "#ffffff",
-          stroke: "#e5e7eb",
-          strokeWidth: 2,
+          stroke: "#cbd5e1",
+          strokeWidth: 1,
+          parentId: frameId,
         });
 
+        // Card title
         await createNodeInFirestore({
           type: "text",
           x: cardX + 20,
-          y: cardY + 30,
+          y: cardY + 28,
           text: `Card ${i + 1}`,
           fontSize: 18,
-          fill: "#000000",
+          fill: "#1e293b",
+          parentId: frameId,
+        });
+
+        // Card description
+        await createNodeInFirestore({
+          type: "text",
+          x: cardX + 20,
+          y: cardY + 60,
+          text: "Data visualization",
+          fontSize: 13,
+          fill: "#64748b",
+          parentId: frameId,
         });
       }
 
-      const totalElements = 3 + cardCount; // header + sidebar + title + cards
-      return `✓ Created dashboard "${title}" at position (${x}, ${y}) with header, sidebar, and ${cardCount} cards (${totalElements} elements total)`;
+      return `✓ Created modern dashboard "${title}" at position (${x}, ${y}) with header, sidebar (4 menu items), and ${cardCount} cards - all elements properly nested in frame`;
     },
   }),
 };

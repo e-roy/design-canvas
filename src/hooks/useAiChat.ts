@@ -30,13 +30,14 @@ interface UseAiChatReturn {
   clearChat: () => Promise<void>;
   isInitializing: boolean;
   executedCommands: number;
+  queueLength: number;
 }
 
 // Helper function to convert UIMessage to ChatMessage
 function uiMessageToChatMessage(msg: UIMessage): ChatMessage {
   // Extract text content from parts
   const textParts = msg.parts.filter((part) => part.type === "text");
-  const content = textParts
+  let content = textParts
     .map((part) => {
       if (part.type === "text") {
         return part.text;
@@ -44,6 +45,25 @@ function uiMessageToChatMessage(msg: UIMessage): ChatMessage {
       return "";
     })
     .join("");
+
+  // If no text content but there are tool-result parts, extract those
+  if (!content && msg.role === "assistant") {
+    const toolResultParts = msg.parts.filter(
+      (part) => part.type === "tool-result"
+    );
+    if (toolResultParts.length > 0) {
+      content = toolResultParts
+        .map((part) => {
+          if (part.type === "tool-result" && "output" in part) {
+            // Tool results should contain the confirmation messages from our tools
+            return typeof part.output === "string" ? part.output : "✓ Done";
+          }
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
 
   return {
     id: msg.id,
@@ -73,6 +93,9 @@ export function useAiChat(options?: UseAiChatOptions): UseAiChatReturn {
   const lastMessageCountRef = useRef(0);
   // Track loaded message IDs to avoid re-saving them
   const loadedMessageIdsRef = useRef<Set<string>>(new Set());
+  // Queue for pending messages
+  const messageQueueRef = useRef<string[]>([]);
+  const isProcessingQueueRef = useRef(false);
 
   // Create transport for the chat with context
   const transport = new DefaultChatTransport({
@@ -100,10 +123,17 @@ export function useAiChat(options?: UseAiChatOptions): UseAiChatReturn {
         },
       };
 
-      return fetch(url, {
+      const response = await fetch(url, {
         ...init,
         body: JSON.stringify(contextPayload),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Chat API error:", errorText);
+      }
+
+      return response;
     },
   });
 
@@ -120,7 +150,10 @@ export function useAiChat(options?: UseAiChatOptions): UseAiChatReturn {
     messages: [],
   });
 
-  const isLoading = status === "streaming" || status === "submitted";
+  const isLoading =
+    status === "streaming" ||
+    status === "submitted" ||
+    messageQueueRef.current.length > 0;
   const error = chatError || null;
   const executedCommands = executedCommandCount;
 
@@ -200,36 +233,89 @@ export function useAiChat(options?: UseAiChatOptions): UseAiChatReturn {
     return () => clearTimeout(timeoutId);
   }, [messages, user, isInitializing]);
 
+  // Process message queue
+  const processMessageQueue = useCallback(async () => {
+    if (
+      isProcessingQueueRef.current ||
+      messageQueueRef.current.length === 0 ||
+      status === "streaming" ||
+      status === "submitted"
+    ) {
+      return;
+    }
+
+    isProcessingQueueRef.current = true;
+    const nextMessage = messageQueueRef.current.shift();
+
+    if (nextMessage) {
+      try {
+        await sendMessage({
+          role: "user",
+          parts: [{ type: "text", text: nextMessage }],
+        });
+      } catch (err) {
+        console.error("Failed to send message from queue:", err);
+        // Re-add the message to the front of the queue on error
+        messageQueueRef.current.unshift(nextMessage);
+      }
+    }
+
+    isProcessingQueueRef.current = false;
+  }, [sendMessage, status]);
+
+  // Watch for when the chat becomes available and process queue
+  useEffect(() => {
+    if (
+      status !== "streaming" &&
+      status !== "submitted" &&
+      messageQueueRef.current.length > 0
+    ) {
+      processMessageQueue();
+    }
+  }, [status, processMessageQueue]);
+
   // Handle form submission
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!user || !input.trim() || isLoading) return;
+      if (!user || !input.trim()) return;
 
-      // Send the message using the new API
+      const messageText = input.trim();
+      setInput("");
+
+      // Add to queue if currently processing
+      if (status === "streaming" || status === "submitted") {
+        messageQueueRef.current.push(messageText);
+        return;
+      }
+
+      // Send immediately if idle
       await sendMessage({
         role: "user",
-        parts: [{ type: "text", text: input.trim() }],
+        parts: [{ type: "text", text: messageText }],
       });
-
-      // Clear input
-      setInput("");
     },
-    [user, input, isLoading, sendMessage]
+    [user, input, sendMessage, status]
   );
 
   // Send a quick message without using the input field
   const sendQuickMessage = useCallback(
     async (message: string) => {
-      if (!user || !message.trim() || isLoading) return;
+      if (!user || !message.trim()) return;
 
-      // Send the message directly
+      // Add to queue if currently processing
+      if (status === "streaming" || status === "submitted") {
+        messageQueueRef.current.push(message.trim());
+        return;
+      }
+
+      // Send immediately if idle
       await sendMessage({
         role: "user",
         parts: [{ type: "text", text: message.trim() }],
       });
     },
-    [user, isLoading, sendMessage]
+    [user, sendMessage, status]
   );
 
   const clearChat = useCallback(async () => {
@@ -243,6 +329,8 @@ export function useAiChat(options?: UseAiChatOptions): UseAiChatReturn {
       // Reset tracking refs
       lastMessageCountRef.current = 0;
       loadedMessageIdsRef.current.clear();
+      messageQueueRef.current = [];
+      isProcessingQueueRef.current = false;
     } catch (err) {
       console.error("Failed to clear chat:", err);
     }
@@ -259,5 +347,6 @@ export function useAiChat(options?: UseAiChatOptions): UseAiChatReturn {
     clearChat,
     isInitializing,
     executedCommands,
+    queueLength: messageQueueRef.current.length,
   };
 }

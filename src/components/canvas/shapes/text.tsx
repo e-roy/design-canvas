@@ -99,8 +99,9 @@ export const TextShape = memo(function TextShape({
     });
   }, [shape.id, onShapeChange]);
 
-  const strokeColor = isSelected ? "#3b82f6" : shape.stroke || "#000000";
-  const strokeWidth = isSelected ? 3 : shape.strokeWidth || 1;
+  // Only show stroke when selected (as a selection indicator)
+  const strokeColor = isSelected ? "#3b82f6" : undefined;
+  const strokeWidth = isSelected ? 2 : 0;
 
   return (
     <>
